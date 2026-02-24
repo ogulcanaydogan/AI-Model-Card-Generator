@@ -1,0 +1,41 @@
+# Model Card: {{ .Metadata.Name }}
+
+## Metadata
+- Owner: {{ .Metadata.Owner }}
+- License: {{ .Metadata.License }}
+- Tags: {{ range $i, $t := .Metadata.Tags }}{{ if $i }}, {{ end }}{{ $t }}{{ end }}
+- Intended Use: {{ .Metadata.IntendedUse }}
+- Limitations: {{ .Metadata.Limitations }}
+
+## Performance
+- Accuracy: {{ printf "%.4f" .Performance.Accuracy }}
+- Precision: {{ printf "%.4f" .Performance.Precision }}
+- Recall: {{ printf "%.4f" .Performance.Recall }}
+- F1: {{ printf "%.4f" .Performance.F1 }}
+- AUC: {{ printf "%.4f" .Performance.AUC }}
+
+## Fairness
+- Demographic Parity Difference: {{ printf "%.4f" .Fairness.DemographicParityDiff }}
+- Equalized Odds Difference: {{ printf "%.4f" .Fairness.EqualizedOddsDiff }}
+
+{{ if .Fairness.GroupStats }}### Group Statistics
+| Group | Selection Rate | TPR | FPR | Support |
+|---|---:|---:|---:|---:|
+{{ range .Fairness.GroupStats }}| {{ .Group }} | {{ printf "%.4f" .SelectionRate }} | {{ printf "%.4f" .TruePositiveRate }} | {{ printf "%.4f" .FalsePositiveRate }} | {{ .Support }} |
+{{ end }}{{ end }}
+
+## Risk Assessment
+{{ range .RiskAssessment.KnownRisks }}- {{ . }}
+{{ end }}{{ range .RiskAssessment.BiasNotes }}- {{ . }}
+{{ end }}
+
+## Compliance
+{{ range .Compliance }}
+### {{ .Framework }}
+- Score: {{ printf "%.2f" .Score }}
+- Status: {{ .Status }}
+{{ range .Findings }}- Finding: {{ . }}
+{{ end }}{{ range .RequiredGaps }}- Required Gap: {{ . }}
+{{ end }}{{ range .RecommendedActions }}- Recommendation: {{ . }}
+{{ end }}
+{{ end }}

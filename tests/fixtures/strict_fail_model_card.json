@@ -1,0 +1,23 @@
+{
+  "version": "v1",
+  "metadata": {
+    "name": "broken-model"
+  },
+  "performance": {
+    "accuracy": 0,
+    "precision": 0,
+    "recall": 0,
+    "f1": 0
+  },
+  "fairness": {
+    "demographic_parity_diff": 0.35,
+    "equalized_odds_diff": 0.31,
+    "group_stats": []
+  },
+  "risk_assessment": {
+    "known_risks": [],
+    "mitigations": [],
+    "bias_notes": []
+  },
+  "compliance": []
+}

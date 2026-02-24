@@ -1,0 +1,10 @@
+{
+  "name": "demo-model",
+  "owner": "yapay-ai",
+  "license": "apache-2.0",
+  "tags": ["classification", "nlp"],
+  "intended_use": "Binary text classification for support routing",
+  "limitations": "Not validated for medical or legal use",
+  "training_data": "Internal ticket corpus",
+  "eval_data": "Held-out multilingual sample"
+}

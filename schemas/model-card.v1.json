@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://yapay.ai/schemas/model-card.v1.json",
+  "title": "AI Model Card v1",
+  "type": "object",
+  "required": [
+    "metadata",
+    "performance",
+    "fairness",
+    "risk_assessment",
+    "compliance",
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "owner": { "type": "string" },
+        "license": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "intended_use": { "type": "string" },
+        "limitations": { "type": "string" },
+        "training_data": { "type": "string" },
+        "eval_data": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "performance": {
+      "type": "object",
+      "required": ["accuracy", "precision", "recall", "f1"],
+      "properties": {
+        "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "precision": { "type": "number", "minimum": 0, "maximum": 1 },
+        "recall": { "type": "number", "minimum": 0, "maximum": 1 },
+        "f1": { "type": "number", "minimum": 0, "maximum": 1 },
+        "auc": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "fairness": {
+      "type": "object",
+      "required": ["demographic_parity_diff", "equalized_odds_diff"],
+      "properties": {
+        "demographic_parity_diff": { "type": "number", "minimum": 0, "maximum": 1 },
+        "equalized_odds_diff": { "type": "number", "minimum": 0, "maximum": 1 },
+        "group_stats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["group", "selection_rate", "true_positive_rate", "false_positive_rate", "support"],
+            "properties": {
+              "group": { "type": "string" },
+              "selection_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+              "true_positive_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+              "false_positive_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+              "support": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "risk_assessment": {
+      "type": "object",
+      "properties": {
+        "known_risks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mitigations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "bias_notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "compliance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["framework", "score", "status"],
+        "properties": {
+          "framework": { "type": "string" },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "status": { "type": "string", "enum": ["pass", "warn", "fail"] },
+          "findings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "required_gaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "recommended_actions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "governance": {
+      "type": "object"
+    },
+    "artifacts": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

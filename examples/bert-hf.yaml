@@ -1,0 +1,12 @@
+model: bert-base-uncased
+source: hf
+template: standard
+eval_file: examples/eval_sample.csv
+formats:
+  - md
+  - json
+  - pdf
+out_dir: artifacts
+lang: en
+compliance:
+  - eu-ai-act

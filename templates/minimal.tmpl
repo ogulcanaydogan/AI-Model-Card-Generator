@@ -1,0 +1,16 @@
+# Model Card: {{ .Metadata.Name }}
+
+## Metadata
+- Owner: {{ .Metadata.Owner }}
+- License: {{ .Metadata.License }}
+
+## Performance
+- Accuracy: {{ printf "%.4f" .Performance.Accuracy }}
+- F1: {{ printf "%.4f" .Performance.F1 }}
+
+## Fairness
+- Demographic Parity Difference: {{ printf "%.4f" .Fairness.DemographicParityDiff }}
+
+## Compliance
+{{ range .Compliance }}- {{ .Framework }}: {{ .Status }} ({{ printf "%.2f" .Score }})
+{{ end }}

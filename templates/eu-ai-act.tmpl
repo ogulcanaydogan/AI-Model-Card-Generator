@@ -1,0 +1,33 @@
+# EU AI Act Model Card: {{ .Metadata.Name }}
+
+## Metadata
+- Provider: {{ .Metadata.Owner }}
+- License: {{ .Metadata.License }}
+- Intended Use: {{ .Metadata.IntendedUse }}
+- Limitations: {{ .Metadata.Limitations }}
+
+## Technical Performance
+- Accuracy: {{ printf "%.4f" .Performance.Accuracy }}
+- Precision: {{ printf "%.4f" .Performance.Precision }}
+- Recall: {{ printf "%.4f" .Performance.Recall }}
+- F1: {{ printf "%.4f" .Performance.F1 }}
+
+## Bias and Fairness
+- Demographic Parity Difference: {{ printf "%.4f" .Fairness.DemographicParityDiff }}
+- Equalized Odds Difference: {{ printf "%.4f" .Fairness.EqualizedOddsDiff }}
+
+## Risks and Controls
+{{ range .RiskAssessment.KnownRisks }}- Risk: {{ . }}
+{{ end }}{{ range .RiskAssessment.Mitigations }}- Mitigation: {{ . }}
+{{ end }}
+
+## EU AI Act Compliance Advisory
+{{ range .Compliance }}
+{{ if eq .Framework "eu-ai-act" }}
+- Score: {{ printf "%.2f" .Score }}
+- Status: {{ .Status }}
+{{ range .RequiredGaps }}- Required Gap: {{ . }}
+{{ end }}{{ range .Findings }}- Finding: {{ . }}
+{{ end }}{{ range .RecommendedActions }}- Action: {{ . }}
+{{ end }}
+{{ end }}{{ end }}

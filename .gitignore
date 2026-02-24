@@ -1,0 +1,14 @@
+# Build artifacts
+artifacts/
+dist/
+
+# Go
+*.test
+*.out
+
+# Python
+__pycache__/
+*.pyc
+
+# OS/editor
+.DS_Store
