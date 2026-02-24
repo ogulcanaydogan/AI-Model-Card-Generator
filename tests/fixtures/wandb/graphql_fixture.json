@@ -1,0 +1,25 @@
+{
+  "data": {
+    "project": {
+      "run": {
+        "name": "abc123",
+        "displayName": "support-router-v2",
+        "tags": ["nlp", "production"],
+        "notes": "Model tuned for support triage.",
+        "summaryMetrics": {
+          "accuracy": 0.93,
+          "f1": 0.91,
+          "loss": 0.12,
+          "status": "ok"
+        },
+        "config": {
+          "license": { "value": "apache-2.0" },
+          "intended_use": { "value": "Route support requests" },
+          "limitations": { "value": "Not suitable for legal advice" },
+          "training_data": { "value": "Internal support tickets" },
+          "eval_data": { "value": "Held-out support set" }
+        }
+      }
+    }
+  }
+}

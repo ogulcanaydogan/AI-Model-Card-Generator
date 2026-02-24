@@ -62,7 +62,7 @@ Usage:
 
 func runGenerate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
-	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased)")
+	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased for hf, entity/project/run_id for wandb)")
 	source := fs.String("source", "hf", "Model source: hf|mlflow|wandb|custom")
 	templateName := fs.String("template", "standard", "Template: standard|eu-ai-act|minimal")
 	evalFile := fs.String("eval-file", "", "Evaluation CSV path")
@@ -79,6 +79,11 @@ func runGenerate(args []string) error {
 	if strings.TrimSpace(*model) == "" {
 		return fmt.Errorf("--model is required")
 	}
+	if strings.EqualFold(strings.TrimSpace(*source), "wandb") {
+		if _, err := extractors.ParseWandBModelID(*model); err != nil {
+			return fmt.Errorf("invalid --model for wandb source: %w", err)
+		}
+	}
 	if strings.TrimSpace(*evalFile) == "" {
 		return fmt.Errorf("--eval-file is required")
 	}
@@ -91,12 +96,15 @@ func runGenerate(args []string) error {
 	if strings.TrimSpace(pythonBin) == "" {
 		pythonBin = "python3"
 	}
+	wandbBaseURL := os.Getenv("WANDB_BASE_URL")
+	wandbAPIKey := os.Getenv("WANDB_API_KEY")
+	wandbFixture := os.Getenv("MCG_WANDB_FIXTURE")
 
 	pipeline := core.Pipeline{
 		Extractors: map[string]core.Extractor{
 			"hf":     extractors.NewHuggingFaceExtractor(*hfBaseURL),
 			"mlflow": &extractors.MLflowExtractor{},
-			"wandb":  &extractors.WeightsAndBiasesExtractor{},
+			"wandb":  extractors.NewWeightsAndBiasesExtractor(wandbBaseURL, wandbAPIKey, wandbFixture),
 			"custom": &extractors.CustomExtractor{},
 		},
 		Analyzers: []core.Analyzer{

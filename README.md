@@ -6,6 +6,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 
 - Go-first CLI pipeline (`mcg`) for extraction, analysis, compliance, and export.
 - Phase 1 support for Hugging Face extraction.
+- Phase 2 Sprint 1 support for W&B extraction (`entity/project/run_id`).
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -64,6 +65,23 @@ go run ./cmd/mcg-cli generate \
   --compliance eu-ai-act
 ```
 
+### Generate (W&B)
+
+`--model` must be in this format: `<entity>/<project>/<run_id>`.
+
+```bash
+WANDB_API_KEY=your_api_key_here \
+go run ./cmd/mcg-cli generate \
+  --model entity/project/run_id \
+  --source wandb \
+  --template standard \
+  --eval-file examples/eval_sample.csv \
+  --formats md,json \
+  --out-dir artifacts/wandb \
+  --lang en \
+  --compliance eu-ai-act
+```
+
 ### Validate
 
 ```bash
@@ -89,6 +107,16 @@ go run ./cmd/mcg-cli check \
   --input artifacts/model_card.json \
   --strict true
 ```
+
+### W&B Environment Variables
+
+- `WANDB_API_KEY` (required for live W&B extraction)
+- `WANDB_BASE_URL` (optional, defaults to `https://api.wandb.ai`)
+- `MCG_WANDB_FIXTURE` (optional, enables deterministic fixture mode for tests)
+
+Example script:
+
+- `examples/wandb-generate.sh`
 
 ## Eval CSV Contract
 
@@ -126,6 +154,12 @@ Run tests:
 go test ./...
 ```
 
+Run integration tests with W&B fixture mode:
+
+```bash
+MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json go test ./tests/integration -v
+```
+
 ## Roadmap
 
 ### Phase 1 (implemented baseline)
@@ -139,7 +173,8 @@ go test ./...
 
 ### Phase 2 (scaffolded)
 
-- W&B and MLflow full integrations
+- W&B integration (implemented in Sprint 1)
+- MLflow full integration
 - Carbon footprint estimator
 - i18n and Next.js web UI
 - NIST AI RMF mapping expansion
