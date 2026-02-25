@@ -64,6 +64,9 @@ jobs:
 
       - name: Generate sample artifacts
         if: github.ref == 'refs/heads/main'
+        env:
+          MCG_FAIRNESS_SCRIPT: tests/fixtures/fairness_stub.py
+          MCG_PYTHON_BIN: python3
         run: |
           go run ./cmd/mcg-cli generate \
             --model demo-model \
