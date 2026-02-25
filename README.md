@@ -7,6 +7,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Go-first CLI pipeline (`mcg`) for extraction, analysis, compliance, and export.
 - Phase 1 support for Hugging Face extraction.
 - Phase 2 Sprint 1 support for W&B extraction (`entity/project/run_id`).
+- Phase 2 Sprint 2 support for MLflow extraction (`run:<run_id>`).
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -118,6 +119,35 @@ Example script:
 
 - `examples/wandb-generate.sh`
 
+### Generate (MLflow)
+
+`--model` must be in this format: `run:<run_id>`.
+
+```bash
+MLFLOW_TRACKING_URI=http://localhost:5000 \
+go run ./cmd/mcg-cli generate \
+  --model run:abc123 \
+  --source mlflow \
+  --template standard \
+  --eval-file examples/eval_sample.csv \
+  --formats md,json \
+  --out-dir artifacts/mlflow \
+  --lang en \
+  --compliance eu-ai-act
+```
+
+### MLflow Environment Variables
+
+- `MLFLOW_TRACKING_URI` (required for live MLflow extraction)
+- `MLFLOW_TRACKING_TOKEN` (optional bearer token auth)
+- `MLFLOW_TRACKING_USERNAME` (optional basic auth username)
+- `MLFLOW_TRACKING_PASSWORD` (optional basic auth password)
+- `MCG_MLFLOW_FIXTURE` (optional, enables deterministic fixture mode for tests)
+
+Example script:
+
+- `examples/mlflow-generate.sh`
+
 ## Eval CSV Contract
 
 Required columns:
@@ -160,6 +190,12 @@ Run integration tests with W&B fixture mode:
 MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json go test ./tests/integration -v
 ```
 
+Run integration tests with MLflow fixture mode:
+
+```bash
+MCG_MLFLOW_FIXTURE=tests/fixtures/mlflow/run_get_fixture.json go test ./tests/integration -v
+```
+
 ## Roadmap
 
 ### Phase 1 (implemented baseline)
@@ -174,7 +210,7 @@ MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json go test ./tests/integrat
 ### Phase 2 (scaffolded)
 
 - W&B integration (implemented in Sprint 1)
-- MLflow full integration
+- MLflow integration (implemented in Sprint 2)
 - Carbon footprint estimator
 - i18n and Next.js web UI
 - NIST AI RMF mapping expansion

@@ -113,6 +113,70 @@ func TestCLIWandBFixtureGenerateValidateCheck(t *testing.T) {
 	}
 }
 
+func TestCLIMLflowFixtureGenerateValidateCheck(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	outDir := filepath.Join(t.TempDir(), "mlflow-artifacts")
+
+	genOut, err := runCLIWithEnv(repoRoot, []string{
+		"MCG_MLFLOW_FIXTURE=tests/fixtures/mlflow/run_get_fixture.json",
+	},
+		"generate",
+		"--model", "run:abc123",
+		"--source", "mlflow",
+		"--eval-file", filepath.Join("examples", "eval_sample.csv"),
+		"--formats", "md,json",
+		"--out-dir", outDir,
+	)
+	if err != nil {
+		t.Fatalf("mlflow fixture generate failed: %v\n%s", err, genOut)
+	}
+
+	jsonPath := filepath.Join(outDir, "model_card.json")
+	if _, err := os.Stat(jsonPath); err != nil {
+		t.Fatalf("expected generated json: %v", err)
+	}
+
+	valOut, err := runCLI(repoRoot,
+		"validate",
+		"--schema", filepath.Join("schemas", "model-card.v1.json"),
+		"--input", jsonPath,
+	)
+	if err != nil {
+		t.Fatalf("validate failed: %v\n%s", err, valOut)
+	}
+
+	checkOut, err := runCLI(repoRoot,
+		"check",
+		"--framework", "eu-ai-act",
+		"--input", jsonPath,
+		"--strict", "false",
+	)
+	if err != nil {
+		t.Fatalf("check failed: %v\n%s", err, checkOut)
+	}
+	if !strings.Contains(checkOut, "eu-ai-act") {
+		t.Fatalf("check output missing framework: %s", checkOut)
+	}
+}
+
+func TestCLIMLflowInvalidModelFormatFails(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	output, err := runCLI(repoRoot,
+		"generate",
+		"--model", "abc123",
+		"--source", "mlflow",
+		"--eval-file", filepath.Join("examples", "eval_sample.csv"),
+		"--formats", "json",
+		"--out-dir", filepath.Join(t.TempDir(), "invalid-mlflow"),
+	)
+	if err == nil {
+		t.Fatalf("expected generate failure for malformed mlflow model id")
+	}
+	if !strings.Contains(output, "invalid --model for mlflow source") {
+		t.Fatalf("unexpected output: %s", output)
+	}
+}
+
 func runCLI(repoRoot string, args ...string) (string, error) {
 	return runCLIWithEnv(repoRoot, nil, args...)
 }

@@ -62,7 +62,7 @@ Usage:
 
 func runGenerate(args []string) error {
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
-	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased for hf, entity/project/run_id for wandb)")
+	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased for hf, entity/project/run_id for wandb, run:<run_id> for mlflow)")
 	source := fs.String("source", "hf", "Model source: hf|mlflow|wandb|custom")
 	templateName := fs.String("template", "standard", "Template: standard|eu-ai-act|minimal")
 	evalFile := fs.String("eval-file", "", "Evaluation CSV path")
@@ -84,6 +84,11 @@ func runGenerate(args []string) error {
 			return fmt.Errorf("invalid --model for wandb source: %w", err)
 		}
 	}
+	if strings.EqualFold(strings.TrimSpace(*source), "mlflow") {
+		if _, err := extractors.ParseMLflowModelID(*model); err != nil {
+			return fmt.Errorf("invalid --model for mlflow source: %w", err)
+		}
+	}
 	if strings.TrimSpace(*evalFile) == "" {
 		return fmt.Errorf("--eval-file is required")
 	}
@@ -99,11 +104,16 @@ func runGenerate(args []string) error {
 	wandbBaseURL := os.Getenv("WANDB_BASE_URL")
 	wandbAPIKey := os.Getenv("WANDB_API_KEY")
 	wandbFixture := os.Getenv("MCG_WANDB_FIXTURE")
+	mlflowTrackingURI := os.Getenv("MLFLOW_TRACKING_URI")
+	mlflowTrackingToken := os.Getenv("MLFLOW_TRACKING_TOKEN")
+	mlflowTrackingUsername := os.Getenv("MLFLOW_TRACKING_USERNAME")
+	mlflowTrackingPassword := os.Getenv("MLFLOW_TRACKING_PASSWORD")
+	mlflowFixture := os.Getenv("MCG_MLFLOW_FIXTURE")
 
 	pipeline := core.Pipeline{
 		Extractors: map[string]core.Extractor{
 			"hf":     extractors.NewHuggingFaceExtractor(*hfBaseURL),
-			"mlflow": &extractors.MLflowExtractor{},
+			"mlflow": extractors.NewMLflowExtractor(mlflowTrackingURI, mlflowTrackingToken, mlflowTrackingUsername, mlflowTrackingPassword, mlflowFixture),
 			"wandb":  extractors.NewWeightsAndBiasesExtractor(wandbBaseURL, wandbAPIKey, wandbFixture),
 			"custom": &extractors.CustomExtractor{},
 		},

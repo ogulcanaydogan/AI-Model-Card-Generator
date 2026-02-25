@@ -1,0 +1,26 @@
+{
+  "run": {
+    "info": {
+      "run_id": "abc123"
+    },
+    "data": {
+      "metrics": [
+        {"key": "accuracy", "value": 0.92},
+        {"key": "f1", "value": 0.89}
+      ],
+      "params": [
+        {"key": "max_depth", "value": "8"},
+        {"key": "learning_rate", "value": "0.01"}
+      ],
+      "tags": [
+        {"key": "mlflow.runName", "value": "support-router-mlflow"},
+        {"key": "mlflow.user", "value": "ml-team"},
+        {"key": "model_card.intended_use", "value": "Route support tickets"},
+        {"key": "model_card.limitations", "value": "Not for legal advice"},
+        {"key": "model_card.license", "value": "apache-2.0"},
+        {"key": "model_card.training_data", "value": "Internal support logs"},
+        {"key": "model_card.eval_data", "value": "Held-out monthly sample"}
+      ]
+    }
+  }
+}
