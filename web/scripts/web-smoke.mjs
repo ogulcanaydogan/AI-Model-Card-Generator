@@ -20,12 +20,18 @@ async function startHFMockServer() {
           eval_results: "HF mock eval dataset"
         }
       };
-      res.writeHead(200, { "Content-Type": "application/json" });
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        Connection: "close"
+      });
       res.end(JSON.stringify(payload));
       return;
     }
 
-    res.writeHead(404, { "Content-Type": "application/json" });
+    res.writeHead(404, {
+      "Content-Type": "application/json",
+      Connection: "close"
+    });
     res.end(JSON.stringify({ error: "not-found" }));
   });
 
@@ -184,6 +190,8 @@ async function run() {
     );
   } finally {
     await stopChildProcess(app);
+    hfMock.server.closeIdleConnections?.();
+    hfMock.server.closeAllConnections?.();
     await new Promise((resolve) => hfMock.server.close(resolve));
     if (process.env.DEBUG_WEB_SMOKE === "1") {
       console.log(appLogs);
