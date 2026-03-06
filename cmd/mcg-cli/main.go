@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,6 +102,15 @@ func runGenerate(args []string) error {
 	if strings.TrimSpace(pythonBin) == "" {
 		pythonBin = "python3"
 	}
+	carbonPythonBin := os.Getenv("MCG_CARBON_PYTHON_BIN")
+	if strings.TrimSpace(carbonPythonBin) == "" {
+		carbonPythonBin = pythonBin
+	}
+	carbonScript := os.Getenv("MCG_CARBON_SCRIPT")
+	if strings.TrimSpace(carbonScript) == "" {
+		carbonScript = filepath.Join("scripts", "carbon_metrics.py")
+	}
+	carbonFixture := os.Getenv("MCG_CARBON_FIXTURE")
 	wandbBaseURL := os.Getenv("WANDB_BASE_URL")
 	wandbAPIKey := os.Getenv("WANDB_API_KEY")
 	wandbFixture := os.Getenv("MCG_WANDB_FIXTURE")
@@ -121,6 +131,7 @@ func runGenerate(args []string) error {
 			&analyzers.PerformanceAnalyzer{},
 			&analyzers.FairnessAnalyzer{PythonBin: pythonBin, ScriptPath: fairnessScript},
 			&analyzers.BiasAnalyzer{},
+			&analyzers.CarbonAnalyzer{PythonBin: carbonPythonBin, ScriptPath: carbonScript, FixturePath: carbonFixture},
 		},
 		Generators: map[string]core.Generator{
 			"md":   &generators.MarkdownGenerator{},
@@ -199,12 +210,16 @@ func runCheck(args []string) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	framework := fs.String("framework", "eu-ai-act", "Framework: eu-ai-act|nist|iso42001")
 	input := fs.String("input", "", "Model card JSON path")
-	strict := fs.Bool("strict", false, "Fail process when required gaps exist")
+	strictValue := fs.String("strict", "false", "Fail process when required gaps exist (true|false)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*input) == "" {
 		return fmt.Errorf("--input is required")
+	}
+	strict, err := strconv.ParseBool(strings.TrimSpace(*strictValue))
+	if err != nil {
+		return fmt.Errorf("invalid --strict value %q: use true or false", *strictValue)
 	}
 
 	card, err := core.LoadModelCard(*input)
@@ -225,7 +240,7 @@ func runCheck(args []string) error {
 		if !ok {
 			return fmt.Errorf("unsupported framework: %s", fw)
 		}
-		report, err := checker.Check(context.Background(), card, core.CheckOptions{Strict: *strict})
+		report, err := checker.Check(context.Background(), card, core.CheckOptions{Strict: strict})
 		if err != nil {
 			return err
 		}
@@ -238,7 +253,7 @@ func runCheck(args []string) error {
 	}
 	fmt.Println(string(payload))
 
-	if core.StrictComplianceExit(reports, *strict) {
+	if core.StrictComplianceExit(reports, strict) {
 		return errors.New("strict compliance check failed")
 	}
 	return nil

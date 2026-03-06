@@ -46,6 +46,13 @@ jobs:
             --output /tmp/fairness-output.json
           test -f /tmp/fairness-output.json
 
+      - name: Run carbon bridge script
+        run: |
+          python scripts/carbon_metrics.py \
+            --input examples/eval_sample.csv \
+            --output /tmp/carbon-output.json
+          test -f /tmp/carbon-output.json
+
   integration-cli:
     runs-on: ubuntu-latest
     needs: [lint-test-go, test-python-bridge]
@@ -67,6 +74,7 @@ jobs:
         env:
           MCG_FAIRNESS_SCRIPT: tests/fixtures/fairness_stub.py
           MCG_PYTHON_BIN: python3
+          MCG_CARBON_FIXTURE: tests/fixtures/carbon/carbon_fixture.json
         run: |
           go run ./cmd/mcg-cli generate \
             --model demo-model \

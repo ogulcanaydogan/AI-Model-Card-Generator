@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,7 @@ func TestCLIGenerateValidateCheck(t *testing.T) {
 		"--uri", filepath.Join("tests", "fixtures", "custom_metadata.json"),
 		"--eval-file", filepath.Join("examples", "eval_sample.csv"),
 		"--formats", "md,json",
+		"--compliance", "eu-ai-act,nist",
 		"--out-dir", outDir,
 	)
 	if err != nil {
@@ -29,6 +31,10 @@ func TestCLIGenerateValidateCheck(t *testing.T) {
 	jsonPath := filepath.Join(outDir, "model_card.json")
 	if _, err := os.Stat(jsonPath); err != nil {
 		t.Fatalf("expected generated json: %v", err)
+	}
+	mdPath := filepath.Join(outDir, "model_card.md")
+	if _, err := os.Stat(mdPath); err != nil {
+		t.Fatalf("expected generated markdown: %v", err)
 	}
 
 	valOut, err := runCLI(repoRoot,
@@ -42,15 +48,52 @@ func TestCLIGenerateValidateCheck(t *testing.T) {
 
 	checkOut, err := runCLI(repoRoot,
 		"check",
-		"--framework", "eu-ai-act",
+		"--framework", "nist",
 		"--input", jsonPath,
 		"--strict", "false",
 	)
 	if err != nil {
-		t.Fatalf("check failed: %v\n%s", err, checkOut)
+		t.Fatalf("nist check failed: %v\n%s", err, checkOut)
 	}
-	if !strings.Contains(checkOut, "eu-ai-act") {
-		t.Fatalf("check output missing framework: %s", checkOut)
+	if !strings.Contains(checkOut, "\"framework\": \"nist\"") {
+		t.Fatalf("check output missing nist framework: %s", checkOut)
+	}
+
+	payload, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("read generated json: %v", err)
+	}
+	var card map[string]any
+	if err := json.Unmarshal(payload, &card); err != nil {
+		t.Fatalf("parse generated json: %v", err)
+	}
+	carbon, ok := card["carbon"].(map[string]any)
+	if !ok {
+		t.Fatalf("generated json missing carbon block: %s", string(payload))
+	}
+	if _, ok := carbon["estimated_kg_co2e"]; !ok {
+		t.Fatalf("generated carbon block missing estimated_kg_co2e: %+v", carbon)
+	}
+
+	mdPayload, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read generated markdown: %v", err)
+	}
+	if !strings.Contains(string(mdPayload), "## Carbon / Sustainability") {
+		t.Fatalf("generated markdown missing carbon section:\n%s", string(mdPayload))
+	}
+}
+
+func TestCLICheckNISTStrictFails(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	_, err := runCLI(repoRoot,
+		"check",
+		"--framework", "nist",
+		"--input", filepath.Join("tests", "fixtures", "strict_fail_model_card.json"),
+		"--strict", "true",
+	)
+	if err == nil {
+		t.Fatalf("expected strict nist check failure")
 	}
 }
 
@@ -188,6 +231,7 @@ func runCLIWithEnv(repoRoot string, extraEnv []string, args ...string) (string, 
 	env := append(os.Environ(),
 		"MCG_FAIRNESS_SCRIPT=tests/fixtures/fairness_stub.py",
 		"MCG_PYTHON_BIN=python3",
+		"MCG_CARBON_FIXTURE=tests/fixtures/carbon/carbon_fixture.json",
 	)
 	env = append(env, extraEnv...)
 	cmd.Env = env

@@ -24,6 +24,13 @@
 {{ range .Fairness.GroupStats }}| {{ .Group }} | {{ printf "%.4f" .SelectionRate }} | {{ printf "%.4f" .TruePositiveRate }} | {{ printf "%.4f" .FalsePositiveRate }} | {{ .Support }} |
 {{ end }}{{ end }}
 
+## Carbon / Sustainability
+{{ if .Carbon }}- Estimated kgCO2e: {{ printf "%.6f" .Carbon.EstimatedKgCO2e }}
+- Method: {{ .Carbon.Method }}
+{{ else }}- Estimated kgCO2e: n/a
+- Method: unavailable
+{{ end }}
+
 ## Risk Assessment
 {{ range .RiskAssessment.KnownRisks }}- {{ . }}
 {{ end }}{{ range .RiskAssessment.BiasNotes }}- {{ . }}

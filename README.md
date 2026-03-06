@@ -8,6 +8,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 1 support for Hugging Face extraction.
 - Phase 2 Sprint 1 support for W&B extraction (`entity/project/run_id`).
 - Phase 2 Sprint 2 support for MLflow extraction (`run:<run_id>`).
+- Phase 2 Sprint 3 support for Carbon estimate + NIST AI RMF checks.
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -100,6 +101,15 @@ go run ./cmd/mcg-cli check \
   --strict false
 ```
 
+NIST check example:
+
+```bash
+go run ./cmd/mcg-cli check \
+  --framework nist \
+  --input artifacts/model_card.json \
+  --strict false
+```
+
 Strict mode exits non-zero only when required gaps exist:
 
 ```bash
@@ -147,6 +157,14 @@ go run ./cmd/mcg-cli generate \
 Example script:
 
 - `examples/mlflow-generate.sh`
+
+### Carbon Environment Variables
+
+- `MCG_CARBON_FIXTURE` (optional, deterministic fixture mode for CI/tests)
+- `MCG_CARBON_SCRIPT` (optional, defaults to `scripts/carbon_metrics.py`)
+- `MCG_CARBON_PYTHON_BIN` (optional, defaults to `MCG_PYTHON_BIN` or `python3`)
+- `MCG_CARBON_KG_CO2E` (optional manual value consumed by bridge script)
+- `MCG_CARBON_EMISSIONS_FILE` (optional CodeCarbon-like CSV path with `emissions` column)
 
 ## Eval CSV Contract
 
@@ -196,6 +214,12 @@ Run integration tests with MLflow fixture mode:
 MCG_MLFLOW_FIXTURE=tests/fixtures/mlflow/run_get_fixture.json go test ./tests/integration -v
 ```
 
+Run integration tests with Carbon fixture mode:
+
+```bash
+MCG_CARBON_FIXTURE=tests/fixtures/carbon/carbon_fixture.json go test ./tests/integration -v
+```
+
 ## Roadmap
 
 ### Phase 1 (implemented baseline)
@@ -207,13 +231,14 @@ MCG_MLFLOW_FIXTURE=tests/fixtures/mlflow/run_get_fixture.json go test ./tests/in
 - Markdown/JSON/HTML/PDF generators
 - CI workflow
 
-### Phase 2 (scaffolded)
+### Phase 2 (implemented and in progress)
 
 - W&B integration (implemented in Sprint 1)
 - MLflow integration (implemented in Sprint 2)
-- Carbon footprint estimator
+- Carbon footprint estimator (implemented in Sprint 3)
+- NIST AI RMF rule-based mapping (implemented in Sprint 3)
 - i18n and Next.js web UI
-- NIST AI RMF mapping expansion
+- NIST AI RMF mapping expansion (deeper policy coverage)
 
 ### Phase 3 (planned)
 

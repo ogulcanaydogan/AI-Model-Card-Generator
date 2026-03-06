@@ -90,6 +90,7 @@ type ModelCard struct {
 	Metadata       ModelMetadata      `json:"metadata"`
 	Performance    PerformanceMetrics `json:"performance"`
 	Fairness       FairnessMetrics    `json:"fairness"`
+	Carbon         *CarbonEstimate    `json:"carbon,omitempty"`
 	RiskAssessment RiskAssessment     `json:"risk_assessment"`
 	Governance     Governance         `json:"governance"`
 	Compliance     []ComplianceReport `json:"compliance"`

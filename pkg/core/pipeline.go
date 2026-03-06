@@ -50,6 +50,7 @@ func (p *Pipeline) Generate(ctx context.Context, opts GenerateOptions) (ModelCar
 
 	perf := PerformanceMetrics{}
 	fairness := FairnessMetrics{}
+	var carbon *CarbonEstimate
 	biasNotes := []string{}
 	riskNotes := []string{}
 
@@ -64,6 +65,9 @@ func (p *Pipeline) Generate(ctx context.Context, opts GenerateOptions) (ModelCar
 		if result.Fairness != nil {
 			fairness = *result.Fairness
 		}
+		if result.Carbon != nil {
+			carbon = result.Carbon
+		}
 		if len(result.BiasNotes) > 0 {
 			biasNotes = append(biasNotes, result.BiasNotes...)
 		}
@@ -77,6 +81,7 @@ func (p *Pipeline) Generate(ctx context.Context, opts GenerateOptions) (ModelCar
 		Metadata:    metadata,
 		Performance: perf,
 		Fairness:    fairness,
+		Carbon:      carbon,
 		RiskAssessment: RiskAssessment{
 			KnownRisks:  riskNotes,
 			Mitigations: []string{"Collect representative evaluation data", "Monitor drift and subgroup behavior", "Document model limitations"},

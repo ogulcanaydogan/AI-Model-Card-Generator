@@ -68,6 +68,15 @@
       },
       "additionalProperties": true
     },
+    "carbon": {
+      "type": "object",
+      "required": ["estimated_kg_co2e", "method"],
+      "properties": {
+        "estimated_kg_co2e": { "type": "number", "minimum": 0 },
+        "method": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "risk_assessment": {
       "type": "object",
       "properties": {

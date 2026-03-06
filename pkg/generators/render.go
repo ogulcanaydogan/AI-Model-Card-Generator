@@ -32,6 +32,13 @@ const defaultMarkdownTemplate = `# Model Card: {{ .Metadata.Name }}
 - Demographic Parity Difference: {{ printf "%.4f" .Fairness.DemographicParityDiff }}
 - Equalized Odds Difference: {{ printf "%.4f" .Fairness.EqualizedOddsDiff }}
 
+## Carbon / Sustainability
+{{ if .Carbon }}- Estimated kgCO2e: {{ printf "%.6f" .Carbon.EstimatedKgCO2e }}
+- Method: {{ .Carbon.Method }}
+{{ else }}- Estimated kgCO2e: n/a
+- Method: unavailable
+{{ end }}
+
 ## Risk Assessment
 {{ range .RiskAssessment.KnownRisks }}- {{ . }}
 {{ end }}
