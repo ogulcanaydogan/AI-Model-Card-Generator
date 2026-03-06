@@ -36,6 +36,25 @@ function runCommand(bin, args, options = {}) {
     const child = spawn(bin, args, options);
     let stdout = "";
     let stderr = "";
+    const timeoutMs = Number(options.timeoutMs || 180000);
+    let completed = false;
+    const timeoutID = setTimeout(() => {
+      if (completed) {
+        return;
+      }
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (!completed) {
+          child.kill("SIGKILL");
+        }
+      }, 2000);
+      completed = true;
+      reject(
+        new Error(
+          `${bin} ${args.join(" ")} timed out after ${timeoutMs}ms: ${stderr || stdout}`
+        )
+      );
+    }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
@@ -43,8 +62,20 @@ function runCommand(bin, args, options = {}) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
-    child.on("error", reject);
+    child.on("error", (err) => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      clearTimeout(timeoutID);
+      reject(err);
+    });
     child.on("close", (code) => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      clearTimeout(timeoutID);
       if (code !== 0) {
         reject(new Error(`${bin} ${args.join(" ")} failed (${code}): ${stderr || stdout}`));
         return;
@@ -118,40 +149,53 @@ export async function POST(request) {
       MCG_MLFLOW_FIXTURE: process.env.MCG_MLFLOW_FIXTURE || ""
     };
 
-    const generated = await runCommand("go", generateArgs, {
+    const cliBin = String(env.MCG_CLI_BIN || "").trim();
+    const commandTimeoutMs = Number(process.env.MCG_WEB_COMMAND_TIMEOUT_MS || "180000");
+    const cliCmd = (args) =>
+      cliBin
+        ? {
+            bin: cliBin,
+            args
+          }
+        : {
+            bin: "go",
+            args: ["run", "./cmd/mcg-cli", ...args]
+          };
+
+    const generateCmd = cliCmd(generateArgs.slice(2));
+    const generated = await runCommand(generateCmd.bin, generateCmd.args, {
       cwd: repoRoot,
-      env
+      env,
+      timeoutMs: commandTimeoutMs
     });
 
-    await runCommand(
-      "go",
-      [
-        "run",
-        "./cmd/mcg-cli",
-        "validate",
-        "--schema",
-        "schemas/model-card.v1.json",
-        "--input",
-        path.join(tempDir, "model_card.json")
-      ],
-      { cwd: repoRoot, env }
-    );
+    const validateCmd = cliCmd([
+      "validate",
+      "--schema",
+      "schemas/model-card.v1.json",
+      "--input",
+      path.join(tempDir, "model_card.json")
+    ]);
+    await runCommand(validateCmd.bin, validateCmd.args, {
+      cwd: repoRoot,
+      env,
+      timeoutMs: commandTimeoutMs
+    });
 
-    const nistCheck = await runCommand(
-      "go",
-      [
-        "run",
-        "./cmd/mcg-cli",
-        "check",
-        "--framework",
-        "nist",
-        "--input",
-        path.join(tempDir, "model_card.json"),
-        "--strict",
-        "false"
-      ],
-      { cwd: repoRoot, env }
-    );
+    const checkCmd = cliCmd([
+      "check",
+      "--framework",
+      "nist",
+      "--input",
+      path.join(tempDir, "model_card.json"),
+      "--strict",
+      "false"
+    ]);
+    const nistCheck = await runCommand(checkCmd.bin, checkCmd.args, {
+      cwd: repoRoot,
+      env,
+      timeoutMs: commandTimeoutMs
+    });
 
     const [jsonRaw, mdRaw, complianceRaw] = await Promise.all([
       fs.readFile(path.join(tempDir, "model_card.json"), "utf-8"),
