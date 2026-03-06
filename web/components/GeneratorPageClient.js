@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { normalizeSource, validateGeneratePayload } from "@/lib/sourceValidation";
 
 const DEFAULT_FORM = {
   source: "custom",
@@ -8,8 +9,10 @@ const DEFAULT_FORM = {
   evalFile: "examples/eval_sample.csv",
   metadataFile: "tests/fixtures/custom_metadata.json",
   template: "standard",
-  compliance: "eu-ai-act,nist"
+  compliance: "eu-ai-act,nist,iso42001"
 };
+
+const COMPLIANCE_TABS = ["eu-ai-act", "nist", "iso42001"];
 
 function ArrayList({ items, fallback }) {
   if (!items || items.length === 0) {
@@ -29,13 +32,17 @@ export default function GeneratorPageClient({ locale, dict }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("nist");
 
-  const nist = useMemo(
-    () => result?.card?.compliance?.find((item) => item.framework === "nist"),
-    [result]
-  );
+  const complianceMap = useMemo(() => {
+    const entries = result?.card?.compliance || [];
+    return Object.fromEntries(entries.map((entry) => [entry.framework, entry]));
+  }, [result]);
+
+  const activeReport = complianceMap[activeTab];
 
   const carbon = result?.card?.carbon;
+  const normalizedSource = normalizeSource(form.source);
 
   const onChange = (event) => {
     const { name, value } = event.target;
@@ -46,6 +53,12 @@ export default function GeneratorPageClient({ locale, dict }) {
     event.preventDefault();
     setIsLoading(true);
     setError("");
+    const validationError = validateGeneratePayload(form);
+    if (validationError) {
+      setIsLoading(false);
+      setError(validationError);
+      return;
+    }
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -60,6 +73,10 @@ export default function GeneratorPageClient({ locale, dict }) {
         throw new Error(payload?.error || "Failed to generate");
       }
       setResult(payload);
+      const available = COMPLIANCE_TABS.find((tab) => payload?.card?.compliance?.some((item) => item.framework === tab));
+      if (available) {
+        setActiveTab(available);
+      }
     } catch (err) {
       setResult(null);
       setError(err.message);
@@ -80,6 +97,9 @@ export default function GeneratorPageClient({ locale, dict }) {
             <span>{dict.source}</span>
             <select name="source" value={form.source} onChange={onChange}>
               <option value="custom">custom</option>
+              <option value="hf">hf</option>
+              <option value="wandb">wandb</option>
+              <option value="mlflow">mlflow</option>
             </select>
           </label>
 
@@ -88,10 +108,19 @@ export default function GeneratorPageClient({ locale, dict }) {
             <input name="model" value={form.model} onChange={onChange} required />
           </label>
 
-          <label>
-            <span>{dict.metadataFile}</span>
-            <input name="metadataFile" value={form.metadataFile} onChange={onChange} required />
-          </label>
+          {normalizedSource === "custom" ? (
+            <label>
+              <span>{dict.metadataFile}</span>
+              <input name="metadataFile" value={form.metadataFile} onChange={onChange} required />
+            </label>
+          ) : null}
+
+          <p className="hint">
+            {normalizedSource === "custom" ? dict.modelHintCustom : null}
+            {normalizedSource === "hf" ? dict.modelHintHF : null}
+            {normalizedSource === "wandb" ? dict.modelHintWandB : null}
+            {normalizedSource === "mlflow" ? dict.modelHintMLflow : null}
+          </p>
 
           <label>
             <span>{dict.evalFile}</span>
@@ -134,23 +163,45 @@ export default function GeneratorPageClient({ locale, dict }) {
                 </p>
               </div>
               <div className="mini-card">
-                <h3>{dict.nistPreview}</h3>
+                <h3>{dict.compliancePreview}</h3>
                 <p>
-                  {dict.status}: <strong>{nist?.status || "n/a"}</strong>
+                  {dict.status}: <strong>{activeReport?.status || "n/a"}</strong>
                 </p>
                 <p>
-                  {dict.score}: <strong>{nist?.score ?? "n/a"}</strong>
+                  {dict.score}: <strong>{activeReport?.score ?? "n/a"}</strong>
                 </p>
               </div>
             </section>
 
+            <section className="tabs" aria-label={dict.complianceTabs}>
+              {COMPLIANCE_TABS.map((tab) => {
+                const label =
+                  tab === "eu-ai-act"
+                    ? dict.euAiActTab
+                    : tab === "nist"
+                      ? dict.nistPreview
+                      : dict.iso42001Tab;
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    className={isActive ? "tab active" : "tab"}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </section>
+
             <section className="details">
               <h3>{dict.requiredGaps}</h3>
-              <ArrayList items={nist?.required_gaps} fallback={dict.noData} />
+              <ArrayList items={activeReport?.required_gaps} fallback={dict.noData} />
               <h3>{dict.findings}</h3>
-              <ArrayList items={nist?.findings} fallback={dict.noData} />
+              <ArrayList items={activeReport?.findings} fallback={dict.noData} />
               <h3>{dict.recommendations}</h3>
-              <ArrayList items={nist?.recommended_actions} fallback={dict.noData} />
+              <ArrayList items={activeReport?.recommended_actions} fallback={dict.noData} />
             </section>
 
             <section className="details">

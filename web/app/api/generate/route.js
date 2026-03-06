@@ -5,6 +5,8 @@ import path from "node:path";
 
 import { NextResponse } from "next/server";
 
+import { normalizeSource, validateGeneratePayload } from "@/lib/sourceValidation";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -56,21 +58,24 @@ export async function POST(request) {
   let tempDir;
   try {
     const payload = await request.json();
-    const source = payload?.source || "custom";
-    if (source !== "custom") {
-      return NextResponse.json(
-        { error: "Sprint 4 web skeleton currently supports only --source custom" },
-        { status: 400 }
-      );
+    const source = normalizeSource(payload?.source);
+    const model = String(payload?.model || "").trim();
+    const evalFile = String(payload?.evalFile || "").trim() || "examples/eval_sample.csv";
+    const metadataFile = String(payload?.metadataFile || "").trim();
+    const template = String(payload?.template || "").trim() || "standard";
+    const compliance = String(payload?.compliance || "").trim() || "eu-ai-act,nist,iso42001";
+    const lang = String(payload?.locale || "").trim() || "en";
+
+    const validationError = validateGeneratePayload({
+      source,
+      model,
+      metadataFile
+    });
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
     const repoRoot = await resolveRepoRoot();
-    const model = payload?.model || "demo-model";
-    const evalFile = payload?.evalFile || "examples/eval_sample.csv";
-    const metadataFile = payload?.metadataFile || "tests/fixtures/custom_metadata.json";
-    const template = payload?.template || "standard";
-    const compliance = payload?.compliance || "eu-ai-act,nist";
-    const lang = payload?.locale || "en";
 
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcg-web-"));
 
@@ -82,8 +87,6 @@ export async function POST(request) {
       model,
       "--source",
       source,
-      "--uri",
-      metadataFile,
       "--eval-file",
       evalFile,
       "--template",
@@ -97,6 +100,12 @@ export async function POST(request) {
       "--compliance",
       compliance
     ];
+    if (source === "custom") {
+      generateArgs.splice(7, 0, "--uri", metadataFile);
+    }
+    if (source === "hf" && process.env.MCG_WEB_HF_BASE_URL) {
+      generateArgs.push("--hf-base-url", process.env.MCG_WEB_HF_BASE_URL);
+    }
 
     const env = {
       ...process.env,
@@ -104,7 +113,9 @@ export async function POST(request) {
       MCG_FAIRNESS_SCRIPT:
         process.env.MCG_FAIRNESS_SCRIPT || "tests/fixtures/fairness_stub.py",
       MCG_CARBON_FIXTURE:
-        process.env.MCG_CARBON_FIXTURE || "tests/fixtures/carbon/carbon_fixture.json"
+        process.env.MCG_CARBON_FIXTURE || "tests/fixtures/carbon/carbon_fixture.json",
+      MCG_WANDB_FIXTURE: process.env.MCG_WANDB_FIXTURE || "",
+      MCG_MLFLOW_FIXTURE: process.env.MCG_MLFLOW_FIXTURE || ""
     };
 
     const generated = await runCommand("go", generateArgs, {

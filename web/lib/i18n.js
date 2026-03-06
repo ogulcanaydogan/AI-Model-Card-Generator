@@ -17,7 +17,11 @@ const dictionaries = {
     preview: "Preview",
     markdownPreview: "Markdown Preview",
     carbonPreview: "Carbon",
+    compliancePreview: "Compliance",
+    complianceTabs: "Compliance tabs",
+    euAiActTab: "EU AI Act",
     nistPreview: "NIST",
+    iso42001Tab: "ISO42001",
     noData: "No data yet.",
     status: "Status",
     score: "Score",
@@ -26,7 +30,11 @@ const dictionaries = {
     recommendations: "Recommendations",
     outputs: "Generated Files",
     logs: "CLI Output",
-    note: "Current web sprint supports custom source flow first."
+    note: "Source parity is enabled for custom/hf/wandb/mlflow preview flow.",
+    modelHintCustom: "Custom model id can be any label (example: demo-model).",
+    modelHintHF: "Hugging Face expects a model id (example: bert-base-uncased).",
+    modelHintWandB: "W&B requires <entity>/<project>/<run_id>.",
+    modelHintMLflow: "MLflow requires run:<run_id>."
   },
   tr: {
     appName: "AI Model Card Generator",
@@ -43,7 +51,11 @@ const dictionaries = {
     preview: "Önizleme",
     markdownPreview: "Markdown Önizleme",
     carbonPreview: "Carbon",
+    compliancePreview: "Uyumluluk",
+    complianceTabs: "Uyumluluk sekmeleri",
+    euAiActTab: "EU AI Act",
     nistPreview: "NIST",
+    iso42001Tab: "ISO42001",
     noData: "Henüz veri yok.",
     status: "Durum",
     score: "Skor",
@@ -52,7 +64,11 @@ const dictionaries = {
     recommendations: "Öneriler",
     outputs: "Üretilen Dosyalar",
     logs: "CLI Çıktısı",
-    note: "Bu web sprintinde önce custom source akışı destekleniyor."
+    note: "Kaynak paritesi custom/hf/wandb/mlflow önizleme akışı için açık.",
+    modelHintCustom: "Custom model id herhangi bir etiket olabilir (örnek: demo-model).",
+    modelHintHF: "Hugging Face model id bekler (örnek: bert-base-uncased).",
+    modelHintWandB: "W&B için format <entity>/<project>/<run_id> olmalı.",
+    modelHintMLflow: "MLflow için format run:<run_id> olmalı."
   }
 };
 

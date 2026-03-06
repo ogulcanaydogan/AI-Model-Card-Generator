@@ -10,6 +10,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 2 support for MLflow extraction (`run:<run_id>`).
 - Phase 2 Sprint 3 support for Carbon estimate + NIST AI RMF checks.
 - Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
+- Phase 2 Sprint 4.1 web source parity (`custom|hf|wandb|mlflow`) and compliance tabs.
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -229,6 +230,14 @@ npm install
 npm run dev
 ```
 
+Run web tests (Sprint 4.1):
+
+```bash
+cd web
+npm run test:unit
+npm run test:smoke
+```
+
 ## Roadmap
 
 ### Phase 1 (implemented baseline)
@@ -247,6 +256,7 @@ npm run dev
 - Carbon footprint estimator (implemented in Sprint 3)
 - NIST AI RMF rule-based mapping (implemented in Sprint 3)
 - i18n and Next.js web UI (Sprint 4 skeleton implemented)
+- Web source parity and compliance tab UX (Sprint 4.1 implemented)
 - NIST AI RMF mapping expansion (deeper policy coverage)
 
 ### Phase 3 (planned)
