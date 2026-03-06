@@ -68,6 +68,24 @@ async function postGenerate(port, payload) {
   return { status: response.status, body };
 }
 
+async function stopChildProcess(child) {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  child.kill("SIGTERM");
+  const graceful = await Promise.race([
+    once(child, "exit").then(() => true),
+    sleep(5000).then(() => false)
+  ]);
+  if (graceful) {
+    return;
+  }
+
+  child.kill("SIGKILL");
+  await Promise.race([once(child, "exit"), sleep(2000)]);
+}
+
 async function run() {
   const port = 3110;
   const hfMock = await startHFMockServer();
@@ -79,17 +97,17 @@ async function run() {
       process.env.MCG_CARBON_FIXTURE || "tests/fixtures/carbon/carbon_fixture.json"
   };
 
-  const dev = spawn("npm", ["run", "dev", "--", "-p", String(port)], {
+  const app = spawn("npm", ["run", "start", "--", "-p", String(port)], {
     env,
     stdio: ["ignore", "pipe", "pipe"]
   });
 
-  let devLogs = "";
-  dev.stdout.on("data", (chunk) => {
-    devLogs += chunk.toString();
+  let appLogs = "";
+  app.stdout.on("data", (chunk) => {
+    appLogs += chunk.toString();
   });
-  dev.stderr.on("data", (chunk) => {
-    devLogs += chunk.toString();
+  app.stderr.on("data", (chunk) => {
+    appLogs += chunk.toString();
   });
 
   try {
@@ -165,14 +183,10 @@ async function run() {
       )
     );
   } finally {
-    dev.kill("SIGTERM");
-    await sleep(500);
-    hfMock.server.close();
-    if (dev.exitCode === null) {
-      dev.kill("SIGKILL");
-    }
+    await stopChildProcess(app);
+    await new Promise((resolve) => hfMock.server.close(resolve));
     if (process.env.DEBUG_WEB_SMOKE === "1") {
-      console.log(devLogs);
+      console.log(appLogs);
     }
   }
 }
