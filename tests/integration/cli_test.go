@@ -58,6 +58,15 @@ func TestCLIGenerateValidateCheck(t *testing.T) {
 	if !strings.Contains(checkOut, "\"framework\": \"nist\"") {
 		t.Fatalf("check output missing nist framework: %s", checkOut)
 	}
+	if !strings.Contains(checkOut, "[evidence:") {
+		t.Fatalf("check output missing evidence markers: %s", checkOut)
+	}
+	if !strings.Contains(checkOut, "[required]") || !strings.Contains(checkOut, "[advisory]") {
+		t.Fatalf("check output missing required/advisory control markers: %s", checkOut)
+	}
+	if !strings.Contains(checkOut, "[MAN-") {
+		t.Fatalf("check output missing expanded control identifier markers: %s", checkOut)
+	}
 
 	payload, err := os.ReadFile(jsonPath)
 	if err != nil {

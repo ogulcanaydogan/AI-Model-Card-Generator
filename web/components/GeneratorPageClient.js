@@ -187,6 +187,11 @@ export default function GeneratorPageClient({ locale, dict }) {
                 <p>
                   {dict.advisoryCount}: <strong>{(activeReport?.findings || []).length}</strong>
                 </p>
+                {activeTab === "nist" ? (
+                  <p>
+                    {dict.controlCoverage}: <strong>{nistOverall.controlCoverage}</strong>
+                  </p>
+                ) : null}
               </div>
             </section>
 
@@ -228,7 +233,8 @@ export default function GeneratorPageClient({ locale, dict }) {
                   {dict.status}: <strong>{nistOverall.status}</strong> | {dict.score}:{" "}
                   <strong>{nistOverall.score ?? "n/a"}</strong> | {dict.requiredCount}:{" "}
                   <strong>{nistOverall.requiredCount}</strong> | {dict.advisoryCount}:{" "}
-                  <strong>{nistOverall.advisoryCount}</strong>
+                  <strong>{nistOverall.advisoryCount}</strong> | {dict.controlCoverage}:{" "}
+                  <strong>{nistOverall.controlCoverage}</strong>
                 </p>
                 <div className="nist-grid">
                   {nistSections.map((section) => (
@@ -243,6 +249,16 @@ export default function GeneratorPageClient({ locale, dict }) {
                         {dict.scoreContribution}:{" "}
                         <strong>{formatScoreContribution(section.scoreContribution)}</strong>
                       </p>
+                      <p>
+                        {dict.controlCoverage}: <strong>{section.controlCoverage}</strong> (
+                        {section.totalControls} {dict.totalControls})
+                      </p>
+                      <p>
+                        {dict.requiredCount}: <strong>{section.requiredCount}</strong> |{" "}
+                        {dict.advisoryCount}: <strong>{section.advisoryCount}</strong>
+                      </p>
+                      <h5>{dict.shortRemediation}</h5>
+                      <ArrayList items={section.shortRemediations} fallback={dict.noData} />
                       <h5>{dict.requiredGaps}</h5>
                       <ArrayList items={section.requiredGaps} fallback={dict.noData} />
                       <h5>{dict.findings}</h5>

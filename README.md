@@ -118,6 +118,11 @@ Status rule is deterministic:
 - `warn`: no required gaps and at least one advisory finding
 - `pass`: no required gaps and no advisory findings
 
+NIST mapping expansion principles:
+- Each control has a stable control ID, evidence field, and requirement class (`required` / `advisory`).
+- Checker messages include `[evidence:<field>]` markers for traceable remediation.
+- Score is control-level weighted (required penalties are stronger than advisory penalties).
+
 Strict mode exits non-zero only when required gaps exist:
 
 ```bash
@@ -255,7 +260,7 @@ npm run test:smoke
 - Markdown/JSON/HTML/PDF generators
 - CI workflow
 
-### Phase 2 (implemented and in progress)
+### Phase 2 (implemented)
 
 - W&B integration (implemented in Sprint 1)
 - MLflow integration (implemented in Sprint 2)
@@ -264,7 +269,7 @@ npm run test:smoke
 - i18n and Next.js web UI (Sprint 4 skeleton implemented)
 - Web source parity and compliance tab UX (Sprint 4.1 implemented)
 - NIST checker deepening + function-based compliance UX hardening (Sprint 4.2 implemented)
-- NIST AI RMF mapping expansion (deeper policy coverage)
+- NIST AI RMF mapping expansion (Phase 2.3 implemented)
 
 ### Phase 3 (planned)
 

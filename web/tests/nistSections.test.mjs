@@ -28,13 +28,18 @@ test("buildNISTFunctionSections groups entries by NIST function", () => {
   assert.equal(govern.status, "fail");
   assert.equal(govern.requiredGaps.length, 1);
   assert.equal(govern.findings.length, 1);
-  assert.equal(govern.scoreContribution, -20);
+  assert.equal(govern.scoreContribution, -16);
+  assert.equal(govern.controlCoverage, "2/4");
+  assert.equal(govern.requiredCount, 1);
+  assert.equal(govern.advisoryCount, 1);
+  assert.equal(govern.shortRemediations.length, 1);
 
   const manage = sections.find((item) => item.functionName === "MANAGE");
   assert.equal(manage.status, "pass");
   assert.equal(manage.requiredGaps.length, 0);
   assert.equal(manage.findings.length, 0);
   assert.equal(manage.recommendedActions.length, 1);
+  assert.equal(manage.controlCoverage, "6/6");
 });
 
 test("summarizeNISTOverall returns status and counts", () => {
@@ -42,8 +47,8 @@ test("summarizeNISTOverall returns status and counts", () => {
     framework: "nist",
     status: "fail",
     score: 45,
-    required_gaps: ["GOVERN: missing owner", "MANAGE: missing mitigations"],
-    findings: ["MEASURE: parity threshold exceeded"]
+    required_gaps: ["GOVERN: [GOV-1][required] missing owner", "MANAGE: [MAN-2][required] missing mitigations"],
+    findings: ["MEASURE: [MEA-4][advisory] parity threshold exceeded"]
   };
 
   const summary = summarizeNISTOverall(report);
@@ -51,6 +56,7 @@ test("summarizeNISTOverall returns status and counts", () => {
   assert.equal(summary.score, 45);
   assert.equal(summary.requiredCount, 2);
   assert.equal(summary.advisoryCount, 1);
+  assert.equal(summary.controlCoverage, "18/21");
 });
 
 test("NIST helpers return safe defaults for non-nist reports", () => {
@@ -59,6 +65,7 @@ test("NIST helpers return safe defaults for non-nist reports", () => {
     status: "n/a",
     score: null,
     requiredCount: 0,
-    advisoryCount: 0
+    advisoryCount: 0,
+    controlCoverage: "0/0"
   });
 });

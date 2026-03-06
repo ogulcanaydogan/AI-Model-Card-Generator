@@ -18,11 +18,15 @@ func TestNISTCheckerPass(t *testing.T) {
 		Metadata: core.ModelMetadata{
 			Name:         "demo-model",
 			Owner:        "ml-team",
+			License:      "apache-2.0",
 			Tags:         []string{"nlp", "support"},
 			IntendedUse:  "Customer support classification",
 			Limitations:  "Not suitable for legal decisions",
 			TrainingData: "Support ticket corpus v2",
 			EvalData:     "Held-out eval sample",
+			Metrics: map[string]float64{
+				"source_accuracy": 0.91,
+			},
 		},
 		Performance: core.PerformanceMetrics{
 			Accuracy:  0.91,
@@ -45,10 +49,12 @@ func TestNISTCheckerPass(t *testing.T) {
 		RiskAssessment: core.RiskAssessment{
 			KnownRisks:  []string{"Data drift in new channels"},
 			Mitigations: []string{"Monthly drift review and threshold recalibration"},
+			BiasNotes:   []string{"Weekly subgroup parity check in monitoring dashboard"},
 		},
 		Governance: core.Governance{
 			Maintainer:  "ml-owner@yapay.ai",
 			GeneratedAt: time.Now().UTC(),
+			Language:    "en",
 		},
 	}
 
@@ -128,6 +134,9 @@ func TestNISTCheckerWarn(t *testing.T) {
 		if !strings.Contains(finding, "[advisory]") {
 			t.Fatalf("finding must be advisory-tagged: %s", finding)
 		}
+		if !strings.Contains(finding, "[evidence:") {
+			t.Fatalf("finding must include evidence marker: %s", finding)
+		}
 	}
 }
 
@@ -149,11 +158,74 @@ func TestNISTCheckerFail(t *testing.T) {
 		if !strings.Contains(gap, "[required]") {
 			t.Fatalf("required gap must be required-tagged: %s", gap)
 		}
+		if !strings.Contains(gap, "[evidence:") {
+			t.Fatalf("required gap must include evidence marker: %s", gap)
+		}
 	}
 	assertContainsFunctionGap(t, report.RequiredGaps, "GOVERN:")
 	assertContainsFunctionGap(t, report.RequiredGaps, "MAP:")
 	assertContainsFunctionGap(t, report.RequiredGaps, "MEASURE:")
 	assertContainsFunctionGap(t, report.RequiredGaps, "MANAGE:")
+}
+
+func TestNISTCheckerScoreWeightsRequiredHigherThanAdvisory(t *testing.T) {
+	t.Parallel()
+	checker := &compliance.NISTChecker{}
+
+	advisoryOnlyCard := core.ModelCard{
+		Metadata: core.ModelMetadata{
+			Name:         "demo-model",
+			Owner:        "ml-team",
+			IntendedUse:  "Customer support classification",
+			Limitations:  "Not suitable for legal decisions",
+			TrainingData: "Support ticket corpus v2",
+			EvalData:     "Held-out eval sample",
+		},
+		Performance: core.PerformanceMetrics{
+			Accuracy:  0.91,
+			Precision: 0.89,
+			Recall:    0.88,
+			F1:        0.885,
+		},
+		Fairness: core.FairnessMetrics{
+			DemographicParityDiff: 0.08,
+			EqualizedOddsDiff:     0.07,
+			GroupStats: []core.FairnessGroupStats{
+				{Group: "a", SelectionRate: 0.50, TruePositiveRate: 0.9, FalsePositiveRate: 0.1, Support: 120},
+				{Group: "b", SelectionRate: 0.48, TruePositiveRate: 0.87, FalsePositiveRate: 0.12, Support: 110},
+			},
+		},
+		RiskAssessment: core.RiskAssessment{
+			KnownRisks:  []string{"Data drift in new channels"},
+			Mitigations: []string{"Monthly drift review and threshold recalibration"},
+		},
+		Governance: core.Governance{
+			Maintainer:  "ml-owner@yapay.ai",
+			GeneratedAt: time.Now().UTC(),
+		},
+	}
+
+	requiredFailCard := advisoryOnlyCard
+	requiredFailCard.Metadata.Owner = ""
+
+	advisoryReport, err := checker.Check(context.Background(), advisoryOnlyCard, core.CheckOptions{})
+	if err != nil {
+		t.Fatalf("advisory report failed: %v", err)
+	}
+	requiredReport, err := checker.Check(context.Background(), requiredFailCard, core.CheckOptions{})
+	if err != nil {
+		t.Fatalf("required report failed: %v", err)
+	}
+
+	if advisoryReport.Status != "warn" {
+		t.Fatalf("advisory status = %s, want warn", advisoryReport.Status)
+	}
+	if requiredReport.Status != "fail" {
+		t.Fatalf("required status = %s, want fail", requiredReport.Status)
+	}
+	if !(requiredReport.Score < advisoryReport.Score) {
+		t.Fatalf("required penalty should reduce score more: required=%.2f advisory=%.2f", requiredReport.Score, advisoryReport.Score)
+	}
 }
 
 func assertContainsFunctionGap(t *testing.T, gaps []string, prefix string) {
