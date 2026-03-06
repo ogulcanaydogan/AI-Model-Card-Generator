@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,7 +18,10 @@ import (
 	"github.com/yapay/ai-model-card-generator/pkg/core"
 	"github.com/yapay/ai-model-card-generator/pkg/extractors"
 	"github.com/yapay/ai-model-card-generator/pkg/generators"
+	apisrv "github.com/yapay/ai-model-card-generator/pkg/server"
 )
+
+const toolVersion = "v1.0.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -42,6 +46,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "check failed: %v\n", err)
 			os.Exit(1)
 		}
+	case "serve":
+		if err := runServe(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "serve failed: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -59,10 +68,34 @@ Usage:
   mcg generate --batch <manifest.yaml> --workers <n> --fail-fast <true|false> --out-dir <path>
   mcg validate --schema schemas/model-card.v1.json --input <model-card.json|md>
   mcg check --framework <eu-ai-act|nist|iso42001> --input <model-card.json> --strict <false|true>
+  mcg serve --addr :8080 --read-timeout 30s --write-timeout 180s
 `)
 }
 
-func runGenerate(args []string) error {
+func runGenerate(args []string) (err error) {
+	auditor := core.NewAuditLoggerFromEnv()
+	record, recErr := core.NewAuditRecord("cli", "generate", toolVersion, map[string]any{"args": args})
+	if recErr != nil {
+		return recErr
+	}
+	started := time.Now()
+	defer func() {
+		record.DurationMS = time.Since(started).Milliseconds()
+		if err != nil {
+			record.Status = "failed"
+			record.Error = err.Error()
+		} else {
+			record.Status = "succeeded"
+		}
+		if auditErr := auditor.Append(record); auditErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%w; audit write failed: %v", err, auditErr)
+				return
+			}
+			err = fmt.Errorf("audit write failed: %w", auditErr)
+		}
+	}()
+
 	fs := flag.NewFlagSet("generate", flag.ContinueOnError)
 	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased for hf, entity/project/run_id for wandb, run:<run_id> for mlflow)")
 	source := fs.String("source", "hf", "Model source: hf|mlflow|wandb|custom")
@@ -81,65 +114,22 @@ func runGenerate(args []string) error {
 		return err
 	}
 
-	fairnessScript := os.Getenv("MCG_FAIRNESS_SCRIPT")
-	if strings.TrimSpace(fairnessScript) == "" {
-		fairnessScript = filepath.Join("scripts", "fairness_metrics.py")
-	}
-	pythonBin := os.Getenv("MCG_PYTHON_BIN")
-	if strings.TrimSpace(pythonBin) == "" {
-		pythonBin = "python3"
-	}
-	carbonPythonBin := os.Getenv("MCG_CARBON_PYTHON_BIN")
-	if strings.TrimSpace(carbonPythonBin) == "" {
-		carbonPythonBin = pythonBin
-	}
-	carbonScript := os.Getenv("MCG_CARBON_SCRIPT")
-	if strings.TrimSpace(carbonScript) == "" {
-		carbonScript = filepath.Join("scripts", "carbon_metrics.py")
-	}
-	carbonFixture := os.Getenv("MCG_CARBON_FIXTURE")
-	wandbBaseURL := os.Getenv("WANDB_BASE_URL")
-	wandbAPIKey := os.Getenv("WANDB_API_KEY")
-	wandbFixture := os.Getenv("MCG_WANDB_FIXTURE")
-	mlflowTrackingURI := os.Getenv("MLFLOW_TRACKING_URI")
-	mlflowTrackingToken := os.Getenv("MLFLOW_TRACKING_TOKEN")
-	mlflowTrackingUsername := os.Getenv("MLFLOW_TRACKING_USERNAME")
-	mlflowTrackingPassword := os.Getenv("MLFLOW_TRACKING_PASSWORD")
-	mlflowFixture := os.Getenv("MCG_MLFLOW_FIXTURE")
-
-	pipeline := core.Pipeline{
-		Extractors: map[string]core.Extractor{
-			"hf":     extractors.NewHuggingFaceExtractor(*hfBaseURL),
-			"mlflow": extractors.NewMLflowExtractor(mlflowTrackingURI, mlflowTrackingToken, mlflowTrackingUsername, mlflowTrackingPassword, mlflowFixture),
-			"wandb":  extractors.NewWeightsAndBiasesExtractor(wandbBaseURL, wandbAPIKey, wandbFixture),
-			"custom": &extractors.CustomExtractor{},
-		},
-		Analyzers: []core.Analyzer{
-			&analyzers.PerformanceAnalyzer{},
-			&analyzers.FairnessAnalyzer{PythonBin: pythonBin, ScriptPath: fairnessScript},
-			&analyzers.BiasAnalyzer{},
-			&analyzers.CarbonAnalyzer{PythonBin: carbonPythonBin, ScriptPath: carbonScript, FixturePath: carbonFixture},
-		},
-		Generators: map[string]core.Generator{
-			"md":   &generators.MarkdownGenerator{},
-			"html": &generators.HTMLGenerator{},
-			"pdf":  &generators.PDFGenerator{},
-			"json": &generators.JSONGenerator{},
-		},
-		ComplianceCheckers: map[string]core.ComplianceChecker{
-			"eu-ai-act": &compliance.EUAIActChecker{},
-			"nist":      &compliance.NISTChecker{},
-			"iso42001":  &compliance.ISO42001Checker{},
-		},
-		DefaultTemplatePath: "templates",
-	}
+	pipeline := buildPipeline(*hfBaseURL)
 
 	if strings.TrimSpace(*batchManifest) != "" {
 		failFast, err := strconv.ParseBool(strings.TrimSpace(*failFastValue))
 		if err != nil {
 			return fmt.Errorf("invalid --fail-fast value %q: use true or false", *failFastValue)
 		}
-		return runGenerateBatch(pipeline, *batchManifest, *outDir, *workers, failFast)
+		record.Source = "batch"
+		record.ModelRef = *batchManifest
+		record.Frameworks = splitCSV(*complianceArg)
+
+		reportPath, err := runGenerateBatch(pipeline, *batchManifest, *outDir, *workers, failFast)
+		if reportPath != "" {
+			record.ArtifactPaths = map[string]string{"batch_report": reportPath}
+		}
+		return err
 	}
 
 	if strings.TrimSpace(*model) == "" {
@@ -172,6 +162,9 @@ func runGenerate(args []string) error {
 		Language:             *lang,
 		ComplianceFrameworks: splitCSV(*complianceArg),
 	}
+	record.Source = strings.TrimSpace(*source)
+	record.ModelRef = strings.TrimSpace(*model)
+	record.Frameworks = opts.ComplianceFrameworks
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -181,6 +174,12 @@ func runGenerate(args []string) error {
 		return err
 	}
 
+	record.ArtifactPaths = map[string]string{}
+	for format, path := range card.Artifacts.GeneratedFiles {
+		record.ArtifactPaths[format] = path
+	}
+	record.ArtifactPaths["compliance_report"] = card.Artifacts.CompliancePath
+
 	fmt.Printf("Generated model card for %s\n", card.Metadata.Name)
 	for format, path := range card.Artifacts.GeneratedFiles {
 		fmt.Printf("- %s: %s\n", format, path)
@@ -189,10 +188,10 @@ func runGenerate(args []string) error {
 	return nil
 }
 
-func runGenerateBatch(pipeline core.Pipeline, manifestPath, outDir string, workers int, failFast bool) error {
+func runGenerateBatch(pipeline core.Pipeline, manifestPath, outDir string, workers int, failFast bool) (string, error) {
 	manifest, err := core.LoadBatchManifest(manifestPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
@@ -205,15 +204,15 @@ func runGenerateBatch(pipeline core.Pipeline, manifestPath, outDir string, worke
 		FailFast: failFast,
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	reportPath := filepath.Join(outDir, "batch_report.json")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return core.Wrap("create batch out-dir", err)
+		return "", core.Wrap("create batch out-dir", err)
 	}
 	if err := core.WriteBatchReport(reportPath, report); err != nil {
-		return err
+		return "", err
 	}
 
 	fmt.Printf("Batch generation finished: total=%d succeeded=%d failed=%d duration_ms=%d\n", report.Total, report.Succeeded, report.Failed, report.DurationMs)
@@ -227,12 +226,35 @@ func runGenerateBatch(pipeline core.Pipeline, manifestPath, outDir string, worke
 	}
 
 	if report.HasFailures() {
-		return fmt.Errorf("batch completed with %d failed job(s)", report.Failed)
+		return reportPath, fmt.Errorf("batch completed with %d failed job(s)", report.Failed)
 	}
-	return nil
+	return reportPath, nil
 }
 
-func runValidate(args []string) error {
+func runValidate(args []string) (err error) {
+	auditor := core.NewAuditLoggerFromEnv()
+	record, recErr := core.NewAuditRecord("cli", "validate", toolVersion, map[string]any{"args": args})
+	if recErr != nil {
+		return recErr
+	}
+	started := time.Now()
+	defer func() {
+		record.DurationMS = time.Since(started).Milliseconds()
+		if err != nil {
+			record.Status = "failed"
+			record.Error = err.Error()
+		} else {
+			record.Status = "succeeded"
+		}
+		if auditErr := auditor.Append(record); auditErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%w; audit write failed: %v", err, auditErr)
+				return
+			}
+			err = fmt.Errorf("audit write failed: %w", auditErr)
+		}
+	}()
+
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	schema := fs.String("schema", filepath.Join("schemas", "model-card.v1.json"), "JSON schema path")
 	input := fs.String("input", "", "Input model card (.json or .md)")
@@ -242,6 +264,7 @@ func runValidate(args []string) error {
 	if strings.TrimSpace(*input) == "" {
 		return fmt.Errorf("--input is required")
 	}
+	record.ModelRef = *input
 
 	ext := strings.ToLower(filepath.Ext(*input))
 	switch ext {
@@ -261,7 +284,30 @@ func runValidate(args []string) error {
 	return nil
 }
 
-func runCheck(args []string) error {
+func runCheck(args []string) (err error) {
+	auditor := core.NewAuditLoggerFromEnv()
+	record, recErr := core.NewAuditRecord("cli", "check", toolVersion, map[string]any{"args": args})
+	if recErr != nil {
+		return recErr
+	}
+	started := time.Now()
+	defer func() {
+		record.DurationMS = time.Since(started).Milliseconds()
+		if err != nil {
+			record.Status = "failed"
+			record.Error = err.Error()
+		} else {
+			record.Status = "succeeded"
+		}
+		if auditErr := auditor.Append(record); auditErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%w; audit write failed: %v", err, auditErr)
+				return
+			}
+			err = fmt.Errorf("audit write failed: %w", auditErr)
+		}
+	}()
+
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	framework := fs.String("framework", "eu-ai-act", "Framework: eu-ai-act|nist|iso42001")
 	input := fs.String("input", "", "Model card JSON path")
@@ -276,19 +322,17 @@ func runCheck(args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid --strict value %q: use true or false", *strictValue)
 	}
+	record.ModelRef = *input
 
 	card, err := core.LoadModelCard(*input)
 	if err != nil {
 		return err
 	}
 
-	checkers := map[string]core.ComplianceChecker{
-		"eu-ai-act": &compliance.EUAIActChecker{},
-		"nist":      &compliance.NISTChecker{},
-		"iso42001":  &compliance.ISO42001Checker{},
-	}
-
+	checkers := complianceCheckers()
 	frameworks := splitCSV(*framework)
+	record.Frameworks = frameworks
+
 	reports := make([]core.ComplianceReport, 0, len(frameworks))
 	for _, fw := range frameworks {
 		checker, ok := checkers[fw]
@@ -312,6 +356,96 @@ func runCheck(args []string) error {
 		return errors.New("strict compliance check failed")
 	}
 	return nil
+}
+
+func runServe(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	addr := fs.String("addr", ":8080", "HTTP listen address")
+	readTimeout := fs.Duration("read-timeout", 30*time.Second, "HTTP read timeout")
+	writeTimeout := fs.Duration("write-timeout", 180*time.Second, "HTTP write timeout")
+	hfBaseURL := fs.String("hf-base-url", "https://huggingface.co", "Hugging Face API base URL")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	api := &apisrv.APIServer{
+		Pipeline:    buildPipeline(*hfBaseURL),
+		SchemaPath:  filepath.Join("schemas", "model-card.v1.json"),
+		AuditLogger: core.NewAuditLoggerFromEnv(),
+		ToolVersion: toolVersion,
+	}
+
+	server := &http.Server{
+		Addr:         *addr,
+		Handler:      api.Handler(),
+		ReadTimeout:  *readTimeout,
+		WriteTimeout: *writeTimeout,
+	}
+	fmt.Printf("mcg serve listening on %s\n", *addr)
+	err := server.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+func buildPipeline(hfBaseURL string) core.Pipeline {
+	fairnessScript := os.Getenv("MCG_FAIRNESS_SCRIPT")
+	if strings.TrimSpace(fairnessScript) == "" {
+		fairnessScript = filepath.Join("scripts", "fairness_metrics.py")
+	}
+	pythonBin := os.Getenv("MCG_PYTHON_BIN")
+	if strings.TrimSpace(pythonBin) == "" {
+		pythonBin = "python3"
+	}
+	carbonPythonBin := os.Getenv("MCG_CARBON_PYTHON_BIN")
+	if strings.TrimSpace(carbonPythonBin) == "" {
+		carbonPythonBin = pythonBin
+	}
+	carbonScript := os.Getenv("MCG_CARBON_SCRIPT")
+	if strings.TrimSpace(carbonScript) == "" {
+		carbonScript = filepath.Join("scripts", "carbon_metrics.py")
+	}
+	carbonFixture := os.Getenv("MCG_CARBON_FIXTURE")
+	wandbBaseURL := os.Getenv("WANDB_BASE_URL")
+	wandbAPIKey := os.Getenv("WANDB_API_KEY")
+	wandbFixture := os.Getenv("MCG_WANDB_FIXTURE")
+	mlflowTrackingURI := os.Getenv("MLFLOW_TRACKING_URI")
+	mlflowTrackingToken := os.Getenv("MLFLOW_TRACKING_TOKEN")
+	mlflowTrackingUsername := os.Getenv("MLFLOW_TRACKING_USERNAME")
+	mlflowTrackingPassword := os.Getenv("MLFLOW_TRACKING_PASSWORD")
+	mlflowFixture := os.Getenv("MCG_MLFLOW_FIXTURE")
+
+	return core.Pipeline{
+		Extractors: map[string]core.Extractor{
+			"hf":     extractors.NewHuggingFaceExtractor(hfBaseURL),
+			"mlflow": extractors.NewMLflowExtractor(mlflowTrackingURI, mlflowTrackingToken, mlflowTrackingUsername, mlflowTrackingPassword, mlflowFixture),
+			"wandb":  extractors.NewWeightsAndBiasesExtractor(wandbBaseURL, wandbAPIKey, wandbFixture),
+			"custom": &extractors.CustomExtractor{},
+		},
+		Analyzers: []core.Analyzer{
+			&analyzers.PerformanceAnalyzer{},
+			&analyzers.FairnessAnalyzer{PythonBin: pythonBin, ScriptPath: fairnessScript},
+			&analyzers.BiasAnalyzer{},
+			&analyzers.CarbonAnalyzer{PythonBin: carbonPythonBin, ScriptPath: carbonScript, FixturePath: carbonFixture},
+		},
+		Generators: map[string]core.Generator{
+			"md":   &generators.MarkdownGenerator{},
+			"html": &generators.HTMLGenerator{},
+			"pdf":  &generators.PDFGenerator{},
+			"json": &generators.JSONGenerator{},
+		},
+		ComplianceCheckers:  complianceCheckers(),
+		DefaultTemplatePath: "templates",
+	}
+}
+
+func complianceCheckers() map[string]core.ComplianceChecker {
+	return map[string]core.ComplianceChecker{
+		"eu-ai-act": &compliance.EUAIActChecker{},
+		"nist":      &compliance.NISTChecker{},
+		"iso42001":  &compliance.ISO42001Checker{},
+	}
 }
 
 func validateMarkdownCard(path string) error {

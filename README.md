@@ -11,6 +11,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 3 support for Carbon estimate + NIST AI RMF checks.
 - Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
 - Phase 2 Sprint 4.1 web source parity (`custom|hf|wandb|mlflow`) and compliance tabs.
+- Phase 3 API server mode (`mcg serve`) and audit trail (`artifacts/audit/runs.jsonl`).
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -147,6 +148,21 @@ go run ./cmd/mcg-cli check \
   --strict true
 ```
 
+### Serve (HTTP API)
+
+```bash
+go run ./cmd/mcg-cli serve \
+  --addr :8080 \
+  --read-timeout 30s \
+  --write-timeout 180s
+```
+
+Endpoints:
+- `POST /generate`
+- `POST /validate`
+- `POST /check`
+- `GET /healthz`
+
 ### W&B Environment Variables
 
 - `WANDB_API_KEY` (required for live W&B extraction)
@@ -194,6 +210,11 @@ Example script:
 - `MCG_CARBON_KG_CO2E` (optional manual value consumed by bridge script)
 - `MCG_CARBON_EMISSIONS_FILE` (optional CodeCarbon-like CSV path with `emissions` column)
 
+### Audit Environment Variables
+
+- `MCG_AUDIT_PATH` (optional, default `artifacts/audit/runs.jsonl`)
+- `MCG_OPERATOR` (optional, default `unknown`)
+
 ## Eval CSV Contract
 
 Required columns:
@@ -229,6 +250,12 @@ Run tests:
 
 ```bash
 go test ./...
+```
+
+API integration tests:
+
+```bash
+go test ./tests/integration -run APIServer -v
 ```
 
 Run integration tests with W&B fixture mode:
@@ -293,12 +320,11 @@ npm run test:smoke
 - NIST checker deepening + function-based compliance UX hardening (Sprint 4.2 implemented)
 - NIST AI RMF mapping expansion (Phase 2.3 implemented)
 
-### Phase 3 (in progress)
+### Phase 3 (implemented)
 
-- Custom template builder
 - Batch processing (Sprint 5 implemented)
-- API server mode
-- Audit trail and release hardening
+- API server mode (Sprint 6 implemented)
+- Audit trail and release hardening (Sprint 7 implemented)
 
 ## Legal Note
 

@@ -37,7 +37,7 @@ func (p *Pipeline) Generate(ctx context.Context, opts GenerateOptions) (ModelCar
 		return ModelCard{}, Wrap("stat eval file", err)
 	}
 
-	metadata, err := extractor.Extract(ctx, opts.Ref)
+	metadata, err := p.extractMetadataWithRetry(ctx, extractor, opts.Ref)
 	if err != nil {
 		return ModelCard{}, Wrap("extract metadata", err)
 	}
@@ -231,6 +231,43 @@ func defaultIfEmpty(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func (p *Pipeline) extractMetadataWithRetry(ctx context.Context, extractor Extractor, ref ModelRef) (ModelMetadata, error) {
+	const maxRetries = 2
+
+	attempts := 1
+	if shouldRetrySource(ref.Source) {
+		attempts += maxRetries
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		metadata, err := extractor.Extract(ctx, ref)
+		if err == nil {
+			return metadata, nil
+		}
+		lastErr = err
+		if attempt == attempts {
+			break
+		}
+		backoff := time.Duration(150*(1<<(attempt-1))) * time.Millisecond
+		select {
+		case <-ctx.Done():
+			return ModelMetadata{}, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return ModelMetadata{}, lastErr
+}
+
+func shouldRetrySource(source string) bool {
+	switch strings.ToLower(strings.TrimSpace(source)) {
+	case "hf", "wandb", "mlflow":
+		return true
+	default:
+		return false
+	}
 }
 
 // EnsureErrorsJoin keeps compatibility for older versions if needed.
