@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { normalizeSource, validateGeneratePayload } from "@/lib/sourceValidation";
+import { buildNISTFunctionSections, summarizeNISTOverall } from "@/lib/nistSections";
 
 const DEFAULT_FORM = {
   source: "custom",
@@ -27,6 +28,13 @@ function ArrayList({ items, fallback }) {
   );
 }
 
+function formatScoreContribution(value) {
+  if (value === 0) {
+    return "0";
+  }
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
 export default function GeneratorPageClient({ locale, dict }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [result, setResult] = useState(null);
@@ -40,6 +48,9 @@ export default function GeneratorPageClient({ locale, dict }) {
   }, [result]);
 
   const activeReport = complianceMap[activeTab];
+  const nistReport = complianceMap.nist;
+  const nistSections = useMemo(() => buildNISTFunctionSections(nistReport), [nistReport]);
+  const nistOverall = useMemo(() => summarizeNISTOverall(nistReport), [nistReport]);
 
   const carbon = result?.card?.carbon;
   const normalizedSource = normalizeSource(form.source);
@@ -163,12 +174,18 @@ export default function GeneratorPageClient({ locale, dict }) {
                 </p>
               </div>
               <div className="mini-card">
-                <h3>{dict.compliancePreview}</h3>
+                <h3>{dict.overallComplianceState}</h3>
                 <p>
                   {dict.status}: <strong>{activeReport?.status || "n/a"}</strong>
                 </p>
                 <p>
                   {dict.score}: <strong>{activeReport?.score ?? "n/a"}</strong>
+                </p>
+                <p>
+                  {dict.requiredCount}: <strong>{(activeReport?.required_gaps || []).length}</strong>
+                </p>
+                <p>
+                  {dict.advisoryCount}: <strong>{(activeReport?.findings || []).length}</strong>
                 </p>
               </div>
             </section>
@@ -203,6 +220,40 @@ export default function GeneratorPageClient({ locale, dict }) {
               <h3>{dict.recommendations}</h3>
               <ArrayList items={activeReport?.recommended_actions} fallback={dict.noData} />
             </section>
+
+            {activeTab === "nist" ? (
+              <section className="details">
+                <h3>{dict.nistFunctionBreakdown}</h3>
+                <p className="muted">
+                  {dict.status}: <strong>{nistOverall.status}</strong> | {dict.score}:{" "}
+                  <strong>{nistOverall.score ?? "n/a"}</strong> | {dict.requiredCount}:{" "}
+                  <strong>{nistOverall.requiredCount}</strong> | {dict.advisoryCount}:{" "}
+                  <strong>{nistOverall.advisoryCount}</strong>
+                </p>
+                <div className="nist-grid">
+                  {nistSections.map((section) => (
+                    <article key={section.functionName} className="nist-card">
+                      <div className="nist-card-header">
+                        <h4>{dict[`nist${section.functionName}`] || section.functionName}</h4>
+                        <span className={`status-badge ${section.status}`}>
+                          {section.status}
+                        </span>
+                      </div>
+                      <p>
+                        {dict.scoreContribution}:{" "}
+                        <strong>{formatScoreContribution(section.scoreContribution)}</strong>
+                      </p>
+                      <h5>{dict.requiredGaps}</h5>
+                      <ArrayList items={section.requiredGaps} fallback={dict.noData} />
+                      <h5>{dict.findings}</h5>
+                      <ArrayList items={section.findings} fallback={dict.noData} />
+                      <h5>{dict.recommendations}</h5>
+                      <ArrayList items={section.recommendedActions} fallback={dict.noData} />
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <section className="details">
               <h3>{dict.outputs}</h3>

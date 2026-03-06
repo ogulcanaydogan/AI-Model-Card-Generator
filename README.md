@@ -112,6 +112,12 @@ go run ./cmd/mcg-cli check \
   --strict false
 ```
 
+NIST report coverage is grouped by `GOVERN`, `MAP`, `MEASURE`, `MANAGE`.
+Status rule is deterministic:
+- `fail`: at least one required gap
+- `warn`: no required gaps and at least one advisory finding
+- `pass`: no required gaps and no advisory findings
+
 Strict mode exits non-zero only when required gaps exist:
 
 ```bash
@@ -257,6 +263,7 @@ npm run test:smoke
 - NIST AI RMF rule-based mapping (implemented in Sprint 3)
 - i18n and Next.js web UI (Sprint 4 skeleton implemented)
 - Web source parity and compliance tab UX (Sprint 4.1 implemented)
+- NIST checker deepening + function-based compliance UX hardening (Sprint 4.2 implemented)
 - NIST AI RMF mapping expansion (deeper policy coverage)
 
 ### Phase 3 (planned)

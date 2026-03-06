@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,6 +62,12 @@ func TestNISTCheckerPass(t *testing.T) {
 	if len(report.RequiredGaps) != 0 {
 		t.Fatalf("required_gaps should be empty: %+v", report.RequiredGaps)
 	}
+	if len(report.Findings) != 0 {
+		t.Fatalf("findings should be empty for pass: %+v", report.Findings)
+	}
+	if report.Score != 100 {
+		t.Fatalf("score = %.2f, want 100", report.Score)
+	}
 }
 
 func TestNISTCheckerWarn(t *testing.T) {
@@ -117,6 +124,11 @@ func TestNISTCheckerWarn(t *testing.T) {
 	if len(report.Findings) == 0 {
 		t.Fatalf("expected advisory findings")
 	}
+	for _, finding := range report.Findings {
+		if !strings.Contains(finding, "[advisory]") {
+			t.Fatalf("finding must be advisory-tagged: %s", finding)
+		}
+	}
 }
 
 func TestNISTCheckerFail(t *testing.T) {
@@ -133,4 +145,23 @@ func TestNISTCheckerFail(t *testing.T) {
 	if len(report.RequiredGaps) == 0 {
 		t.Fatalf("expected required gaps")
 	}
+	for _, gap := range report.RequiredGaps {
+		if !strings.Contains(gap, "[required]") {
+			t.Fatalf("required gap must be required-tagged: %s", gap)
+		}
+	}
+	assertContainsFunctionGap(t, report.RequiredGaps, "GOVERN:")
+	assertContainsFunctionGap(t, report.RequiredGaps, "MAP:")
+	assertContainsFunctionGap(t, report.RequiredGaps, "MEASURE:")
+	assertContainsFunctionGap(t, report.RequiredGaps, "MANAGE:")
+}
+
+func assertContainsFunctionGap(t *testing.T, gaps []string, prefix string) {
+	t.Helper()
+	for _, gap := range gaps {
+		if strings.HasPrefix(gap, prefix) {
+			return
+		}
+	}
+	t.Fatalf("required_gaps missing prefix %s: %+v", prefix, gaps)
 }

@@ -178,6 +178,10 @@ a {
   padding-top: 12px;
 }
 
+.details h5 {
+  margin-bottom: 6px;
+}
+
 .tabs {
   margin-top: 12px;
   display: flex;
@@ -198,6 +202,54 @@ a {
 .tab.active {
   border-color: var(--accent);
   background: #dff6f4;
+}
+
+.nist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.nist-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.nist-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.nist-card-header h4 {
+  margin: 0;
+}
+
+.status-badge {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-badge.pass {
+  color: #1e6a1e;
+  background: #dff3df;
+}
+
+.status-badge.warn {
+  color: #805d00;
+  background: #fff1cd;
+}
+
+.status-badge.fail {
+  color: #8a1f1f;
+  background: #f9dcdc;
 }
 
 .list {
@@ -236,6 +288,10 @@ pre {
   }
 
   .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nist-grid {
     grid-template-columns: 1fr;
   }
 }

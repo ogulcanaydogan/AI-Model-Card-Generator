@@ -12,7 +12,7 @@ This is a Next.js app-router skeleton for Sprint 4.
   - `check --framework nist`
 - In-browser preview for:
   - Carbon section
-  - NIST section
+  - NIST section (GOVERN/MAP/MEASURE/MANAGE breakdown)
   - Markdown output
   - Compliance tabs (`EU AI Act`, `NIST`, `ISO42001`)
 

@@ -11,36 +11,43 @@ import (
 // NISTChecker evaluates model card coverage against NIST AI RMF control families.
 type NISTChecker struct{}
 
+const (
+	nistRequiredPenalty            = 15.0
+	nistAdvisoryPenalty            = 5.0
+	nistDemographicParityThreshold = 0.20
+	nistEqualizedOddsThreshold     = 0.20
+)
+
+type nistFunctionAssessment struct {
+	function           string
+	requiredGaps       []string
+	advisoryFindings   []string
+	recommendedActions []string
+}
+
 func (c *NISTChecker) Framework() string {
 	return "nist"
 }
 
 func (c *NISTChecker) Check(_ context.Context, card core.ModelCard, _ core.CheckOptions) (core.ComplianceReport, error) {
+	assessments := []nistFunctionAssessment{
+		c.checkGovern(card),
+		c.checkMap(card),
+		c.checkMeasure(card),
+		c.checkManage(card),
+	}
+
 	requiredGaps := []string{}
 	findings := []string{}
 	recommendations := []string{}
+	for _, assessment := range assessments {
+		requiredGaps = append(requiredGaps, assessment.requiredGaps...)
+		findings = append(findings, assessment.advisoryFindings...)
+		recommendations = append(recommendations, assessment.recommendedActions...)
+	}
+	recommendations = dedupeStrings(recommendations)
 
-	governGaps, governFindings, governRecs := c.checkGovern(card)
-	mapGaps, mapFindings, mapRecs := c.checkMap(card)
-	measureGaps, measureFindings, measureRecs := c.checkMeasure(card)
-	manageGaps, manageFindings, manageRecs := c.checkManage(card)
-
-	requiredGaps = append(requiredGaps, governGaps...)
-	requiredGaps = append(requiredGaps, mapGaps...)
-	requiredGaps = append(requiredGaps, measureGaps...)
-	requiredGaps = append(requiredGaps, manageGaps...)
-
-	findings = append(findings, governFindings...)
-	findings = append(findings, mapFindings...)
-	findings = append(findings, measureFindings...)
-	findings = append(findings, manageFindings...)
-
-	recommendations = append(recommendations, governRecs...)
-	recommendations = append(recommendations, mapRecs...)
-	recommendations = append(recommendations, measureRecs...)
-	recommendations = append(recommendations, manageRecs...)
-
-	score := 100.0 - float64(len(requiredGaps))*12.0 - float64(len(findings))*4.0
+	score := 100.0 - float64(len(requiredGaps))*nistRequiredPenalty - float64(len(findings))*nistAdvisoryPenalty
 	if score < 0 {
 		score = 0
 	}
@@ -62,105 +69,128 @@ func (c *NISTChecker) Check(_ context.Context, card core.ModelCard, _ core.Check
 	}, nil
 }
 
-func (c *NISTChecker) checkGovern(card core.ModelCard) ([]string, []string, []string) {
-	required := []string{}
-	findings := []string{}
-	recs := []string{}
+func (c *NISTChecker) checkGovern(card core.ModelCard) nistFunctionAssessment {
+	result := nistFunctionAssessment{function: "GOVERN"}
 
 	if strings.TrimSpace(card.Metadata.Owner) == "" {
-		required = append(required, "GOVERN: Accountable owner/provider is missing")
-		recs = append(recs, "GOVERN: Set metadata.owner to document accountable ownership")
+		result.requiredGaps = append(result.requiredGaps, "GOVERN: [GOV-1][required] Accountable owner/provider is missing")
+		result.recommendedActions = append(result.recommendedActions, "GOVERN: [GOV-1] Set metadata.owner to document accountable ownership")
 	}
 
 	if strings.TrimSpace(card.Governance.Maintainer) == "" {
-		findings = append(findings, "GOVERN: Maintainer contact is missing")
-		recs = append(recs, "GOVERN: Populate governance.maintainer for operational accountability")
+		result.requiredGaps = append(result.requiredGaps, "GOVERN: [GOV-2][required] Maintainer contact is missing")
+		result.recommendedActions = append(result.recommendedActions, "GOVERN: [GOV-2] Populate governance.maintainer for operational accountability")
 	}
 
 	if card.Governance.GeneratedAt.IsZero() {
-		findings = append(findings, "GOVERN: Card generation timestamp is missing")
-		recs = append(recs, "GOVERN: Include governance.generated_at for traceability")
+		result.advisoryFindings = append(result.advisoryFindings, "GOVERN: [GOV-3][advisory] Card generation timestamp is missing")
+		result.recommendedActions = append(result.recommendedActions, "GOVERN: [GOV-3] Include governance.generated_at for traceability")
 	}
 
-	return required, findings, recs
+	return result
 }
 
-func (c *NISTChecker) checkMap(card core.ModelCard) ([]string, []string, []string) {
-	required := []string{}
-	findings := []string{}
-	recs := []string{}
+func (c *NISTChecker) checkMap(card core.ModelCard) nistFunctionAssessment {
+	result := nistFunctionAssessment{function: "MAP"}
 
 	if strings.TrimSpace(card.Metadata.IntendedUse) == "" {
-		required = append(required, "MAP: Intended use is missing")
-		recs = append(recs, "MAP: Document metadata.intended_use with expected operating context")
+		result.requiredGaps = append(result.requiredGaps, "MAP: [MAP-1][required] Intended use is missing")
+		result.recommendedActions = append(result.recommendedActions, "MAP: [MAP-1] Document metadata.intended_use with expected operating context")
 	}
 
 	if strings.TrimSpace(card.Metadata.Limitations) == "" {
-		required = append(required, "MAP: Limitations are missing")
-		recs = append(recs, "MAP: Document metadata.limitations and known failure boundaries")
+		result.requiredGaps = append(result.requiredGaps, "MAP: [MAP-2][required] Limitations are missing")
+		result.recommendedActions = append(result.recommendedActions, "MAP: [MAP-2] Document metadata.limitations and known failure boundaries")
 	}
 
 	if strings.TrimSpace(card.Metadata.TrainingData) == "" && strings.TrimSpace(card.Metadata.EvalData) == "" {
-		required = append(required, "MAP: Training/evaluation data context is missing")
-		recs = append(recs, "MAP: Add metadata.training_data or metadata.eval_data context")
+		result.requiredGaps = append(result.requiredGaps, "MAP: [MAP-3][required] Training/evaluation data context is missing")
+		result.recommendedActions = append(result.recommendedActions, "MAP: [MAP-3] Add metadata.training_data or metadata.eval_data context")
 	}
 
 	if len(card.Metadata.Tags) == 0 {
-		findings = append(findings, "MAP: No model tags provided for context classification")
-		recs = append(recs, "MAP: Add metadata.tags to improve downstream governance and filtering")
+		result.advisoryFindings = append(result.advisoryFindings, "MAP: [MAP-4][advisory] No model tags provided for context classification")
+		result.recommendedActions = append(result.recommendedActions, "MAP: [MAP-4] Add metadata.tags to improve downstream governance and filtering")
 	}
 
-	return required, findings, recs
+	return result
 }
 
-func (c *NISTChecker) checkMeasure(card core.ModelCard) ([]string, []string, []string) {
-	required := []string{}
-	findings := []string{}
-	recs := []string{}
+func (c *NISTChecker) checkMeasure(card core.ModelCard) nistFunctionAssessment {
+	result := nistFunctionAssessment{function: "MEASURE"}
 
-	if card.Performance.Accuracy == 0 && card.Performance.Precision == 0 &&
-		card.Performance.Recall == 0 && card.Performance.F1 == 0 {
-		required = append(required, "MEASURE: Performance evidence is missing")
-		recs = append(recs, "MEASURE: Provide non-zero performance metrics with evaluation context")
+	if !hasPerformanceEvidence(card.Performance) {
+		result.requiredGaps = append(result.requiredGaps, "MEASURE: [MEA-1][required] Performance evidence is missing")
+		result.recommendedActions = append(result.recommendedActions, "MEASURE: [MEA-1] Provide non-zero performance metrics with evaluation context")
 	}
 
 	if len(card.Fairness.GroupStats) == 0 {
-		required = append(required, "MEASURE: Subgroup fairness evidence is missing")
-		recs = append(recs, "MEASURE: Provide fairness.group_stats for subgroup analysis")
+		result.requiredGaps = append(result.requiredGaps, "MEASURE: [MEA-2][required] Subgroup fairness evidence is missing")
+		result.recommendedActions = append(result.recommendedActions, "MEASURE: [MEA-2] Provide fairness.group_stats for subgroup analysis")
 	}
 
-	if card.Fairness.DemographicParityDiff > 0.2 {
-		findings = append(findings, fmt.Sprintf("MEASURE: Demographic parity difference %.3f exceeds advisory threshold 0.2", card.Fairness.DemographicParityDiff))
-		recs = append(recs, "MEASURE: Investigate subgroup thresholding/reweighting to reduce parity disparity")
+	if len(card.Fairness.GroupStats) == 1 {
+		result.advisoryFindings = append(result.advisoryFindings, "MEASURE: [MEA-3][advisory] Only one subgroup is present; comparative fairness evidence is weak")
+		result.recommendedActions = append(result.recommendedActions, "MEASURE: [MEA-3] Evaluate at least two relevant groups for comparative fairness")
 	}
 
-	if card.Fairness.EqualizedOddsDiff > 0.2 {
-		findings = append(findings, fmt.Sprintf("MEASURE: Equalized odds difference %.3f exceeds advisory threshold 0.2", card.Fairness.EqualizedOddsDiff))
-		recs = append(recs, "MEASURE: Improve error-rate parity via post-processing or retraining")
+	if card.Fairness.DemographicParityDiff > nistDemographicParityThreshold {
+		result.advisoryFindings = append(result.advisoryFindings, fmt.Sprintf("MEASURE: [MEA-4][advisory] Demographic parity difference %.3f exceeds threshold %.2f", card.Fairness.DemographicParityDiff, nistDemographicParityThreshold))
+		result.recommendedActions = append(result.recommendedActions, "MEASURE: [MEA-4] Investigate subgroup thresholding/reweighting to reduce parity disparity")
 	}
 
-	return required, findings, recs
+	if card.Fairness.EqualizedOddsDiff > nistEqualizedOddsThreshold {
+		result.advisoryFindings = append(result.advisoryFindings, fmt.Sprintf("MEASURE: [MEA-5][advisory] Equalized odds difference %.3f exceeds threshold %.2f", card.Fairness.EqualizedOddsDiff, nistEqualizedOddsThreshold))
+		result.recommendedActions = append(result.recommendedActions, "MEASURE: [MEA-5] Improve error-rate parity via post-processing or retraining")
+	}
+
+	return result
 }
 
-func (c *NISTChecker) checkManage(card core.ModelCard) ([]string, []string, []string) {
-	required := []string{}
-	findings := []string{}
-	recs := []string{}
+func (c *NISTChecker) checkManage(card core.ModelCard) nistFunctionAssessment {
+	result := nistFunctionAssessment{function: "MANAGE"}
 
 	if len(card.RiskAssessment.KnownRisks) == 0 {
-		required = append(required, "MANAGE: Known risk register is missing")
-		recs = append(recs, "MANAGE: Populate risk_assessment.known_risks")
+		result.requiredGaps = append(result.requiredGaps, "MANAGE: [MAN-1][required] Known risk register is missing")
+		result.recommendedActions = append(result.recommendedActions, "MANAGE: [MAN-1] Populate risk_assessment.known_risks")
 	}
 
 	if len(card.RiskAssessment.Mitigations) == 0 {
-		required = append(required, "MANAGE: Mitigation actions are missing")
-		recs = append(recs, "MANAGE: Populate risk_assessment.mitigations")
+		result.requiredGaps = append(result.requiredGaps, "MANAGE: [MAN-2][required] Mitigation actions are missing")
+		result.recommendedActions = append(result.recommendedActions, "MANAGE: [MAN-2] Populate risk_assessment.mitigations")
+	}
+
+	if len(card.RiskAssessment.KnownRisks) > 0 && len(card.RiskAssessment.Mitigations) > 0 &&
+		len(card.RiskAssessment.Mitigations) < len(card.RiskAssessment.KnownRisks) {
+		result.requiredGaps = append(result.requiredGaps, "MANAGE: [MAN-3][required] Risk-to-mitigation coverage is incomplete")
+		result.recommendedActions = append(result.recommendedActions, "MANAGE: [MAN-3] Provide at least one mitigation plan per known risk")
 	}
 
 	if card.Carbon == nil || strings.EqualFold(card.Carbon.Method, "unavailable") || strings.TrimSpace(card.Carbon.Method) == "" {
-		findings = append(findings, "MANAGE: Sustainability evidence is unavailable (carbon estimate)")
-		recs = append(recs, "MANAGE: Provide carbon evidence via fixture or carbon bridge inputs")
+		result.advisoryFindings = append(result.advisoryFindings, "MANAGE: [MAN-4][advisory] Sustainability evidence is unavailable (carbon estimate)")
+		result.recommendedActions = append(result.recommendedActions, "MANAGE: [MAN-4] Provide carbon evidence via fixture or carbon bridge inputs")
 	}
 
-	return required, findings, recs
+	return result
+}
+
+func hasPerformanceEvidence(perf core.PerformanceMetrics) bool {
+	return perf.Accuracy > 0 || perf.Precision > 0 || perf.Recall > 0 || perf.F1 > 0 || perf.AUC > 0
+}
+
+func dedupeStrings(items []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }
