@@ -1,0 +1,21 @@
+version: v1
+defaults:
+  template: standard
+  formats:
+    - md
+    - json
+  lang: en
+  compliance:
+    - eu-ai-act
+    - nist
+  out_dir: artifacts/batch
+jobs:
+  - id: custom-card
+    source: custom
+    model: demo-model
+    uri: tests/fixtures/custom_metadata.json
+    eval_file: examples/eval_sample.csv
+  - id: hf-card
+    source: hf
+    model: bert-base-uncased
+    eval_file: examples/eval_sample.csv

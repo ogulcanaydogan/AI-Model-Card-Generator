@@ -86,6 +86,21 @@ go run ./cmd/mcg-cli generate \
   --compliance eu-ai-act
 ```
 
+### Generate (Batch Manifest)
+
+```bash
+go run ./cmd/mcg-cli generate \
+  --batch examples/batch_manifest.yaml \
+  --workers 4 \
+  --fail-fast false \
+  --out-dir artifacts/batch
+```
+
+Batch outputs:
+- Per-job artifacts default to `<out-dir>/<job-id>/`
+- Summary report is written to `<out-dir>/batch_report.json`
+- Exit code is non-zero when at least one job fails
+
 ### Validate
 
 ```bash
@@ -197,6 +212,7 @@ Optional columns:
 Schema path:
 
 - `schemas/model-card.v1.json`
+- `schemas/batch-manifest.v1.yaml` (batch manifest reference contract)
 
 Required top-level keys:
 
@@ -231,6 +247,12 @@ Run integration tests with Carbon fixture mode:
 
 ```bash
 MCG_CARBON_FIXTURE=tests/fixtures/carbon/carbon_fixture.json go test ./tests/integration -v
+```
+
+Run batch fixture integration tests:
+
+```bash
+MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json go test ./tests/integration -run Batch -v
 ```
 
 Run web UI (Sprint 4 skeleton):
@@ -271,10 +293,10 @@ npm run test:smoke
 - NIST checker deepening + function-based compliance UX hardening (Sprint 4.2 implemented)
 - NIST AI RMF mapping expansion (Phase 2.3 implemented)
 
-### Phase 3 (planned)
+### Phase 3 (in progress)
 
 - Custom template builder
-- Batch processing
+- Batch processing (Sprint 5 implemented)
 - API server mode
 - Audit trail and release hardening
 

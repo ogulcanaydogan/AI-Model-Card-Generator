@@ -1,0 +1,10 @@
+{
+  "name": "Ticket Classifier v2",
+  "owner": "Batch Test Team",
+  "license": "apache-2.0",
+  "tags": ["support", "batch"],
+  "intended_use": "Route support tickets to the correct queue",
+  "limitations": "Not validated for out-of-domain legal text",
+  "training_data": "Historic support conversations",
+  "eval_data": "Holdout support ticket set"
+}

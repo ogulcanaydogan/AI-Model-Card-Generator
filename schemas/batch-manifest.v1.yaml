@@ -1,0 +1,47 @@
+# AI Model Card Generator - Batch Manifest Schema (reference)
+#
+# This file is a human-readable reference contract for `mcg generate --batch`.
+# Version: v1
+#
+# Required top-level fields:
+# - version: "v1"
+# - jobs: non-empty list
+#
+# defaults:
+# - template: string
+# - formats: [md, json, html, pdf]
+# - lang: string
+# - compliance: [eu-ai-act, nist, iso42001]
+# - out_dir: string
+#
+# jobs[] required:
+# - id: unique string
+# - source: hf|wandb|mlflow|custom
+# - model: source-specific model reference
+# - eval_file: path to evaluation CSV
+#
+# jobs[] optional:
+# - uri: required only for custom source
+# - template, formats, lang, compliance, out_dir
+#
+# Source-specific model formats:
+# - wandb: <entity>/<project>/<run_id>
+# - mlflow: run:<run_id>
+
+version: v1
+defaults:
+  template: standard
+  formats:
+    - md
+    - json
+  lang: en
+  compliance:
+    - eu-ai-act
+    - nist
+  out_dir: artifacts/batch
+jobs:
+  - id: job-1
+    source: custom
+    model: demo-model
+    uri: tests/fixtures/custom_metadata.json
+    eval_file: examples/eval_sample.csv

@@ -1,0 +1,23 @@
+version: v1
+defaults:
+  template: standard
+  formats:
+    - md
+    - json
+  lang: en
+  compliance:
+    - eu-ai-act
+jobs:
+  - id: custom-ok
+    source: custom
+    model: custom-demo
+    uri: tests/fixtures/custom_metadata.json
+    eval_file: examples/eval_sample.csv
+  - id: malformed-mlflow
+    source: mlflow
+    model: abc123
+    eval_file: examples/eval_sample.csv
+  - id: wandb-ok
+    source: wandb
+    model: acme/support/abc123
+    eval_file: examples/eval_sample.csv

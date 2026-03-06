@@ -229,6 +229,126 @@ func TestCLIMLflowInvalidModelFormatFails(t *testing.T) {
 	}
 }
 
+func TestCLIBatchContinueOnErrorWritesReport(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	outDir := filepath.Join(t.TempDir(), "batch-out")
+
+	output, err := runCLIWithEnv(repoRoot, []string{
+		"MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json",
+	},
+		"generate",
+		"--batch", filepath.Join("tests", "fixtures", "batch", "manifest_continue.yaml"),
+		"--out-dir", outDir,
+		"--workers", "2",
+		"--fail-fast", "false",
+	)
+	if err == nil {
+		t.Fatalf("expected batch command to fail because one job is invalid")
+	}
+	if !strings.Contains(output, "batch completed with 1 failed job") {
+		t.Fatalf("unexpected batch output: %s", output)
+	}
+
+	reportPath := filepath.Join(outDir, "batch_report.json")
+	raw, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read batch report: %v", err)
+	}
+
+	type batchJob struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	var report struct {
+		Total     int        `json:"total"`
+		Succeeded int        `json:"succeeded"`
+		Failed    int        `json:"failed"`
+		Jobs      []batchJob `json:"jobs"`
+	}
+	if err := json.Unmarshal(raw, &report); err != nil {
+		t.Fatalf("parse batch report: %v", err)
+	}
+	if report.Total != 3 || report.Succeeded != 2 || report.Failed != 1 {
+		t.Fatalf("unexpected batch summary: %+v", report)
+	}
+
+	statusByID := map[string]string{}
+	for _, job := range report.Jobs {
+		statusByID[job.ID] = job.Status
+	}
+	if statusByID["custom-ok"] != "succeeded" {
+		t.Fatalf("expected custom-ok to succeed, got %q", statusByID["custom-ok"])
+	}
+	if statusByID["malformed-mlflow"] != "failed" {
+		t.Fatalf("expected malformed-mlflow to fail, got %q", statusByID["malformed-mlflow"])
+	}
+	if statusByID["wandb-ok"] != "succeeded" {
+		t.Fatalf("expected wandb-ok to succeed, got %q", statusByID["wandb-ok"])
+	}
+
+	if _, err := os.Stat(filepath.Join(outDir, "custom-ok", "model_card.json")); err != nil {
+		t.Fatalf("expected custom-ok artifact: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "wandb-ok", "model_card.json")); err != nil {
+		t.Fatalf("expected wandb-ok artifact: %v", err)
+	}
+}
+
+func TestCLIBatchFailFastStopsEarly(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	outDir := filepath.Join(t.TempDir(), "batch-fail-fast")
+
+	output, err := runCLI(repoRoot,
+		"generate",
+		"--batch", filepath.Join("tests", "fixtures", "batch", "manifest_fail_fast.yaml"),
+		"--out-dir", outDir,
+		"--workers", "1",
+		"--fail-fast", "true",
+	)
+	if err == nil {
+		t.Fatalf("expected fail-fast batch command to fail")
+	}
+	if !strings.Contains(output, "batch completed with 1 failed job") {
+		t.Fatalf("unexpected fail-fast output: %s", output)
+	}
+
+	reportPath := filepath.Join(outDir, "batch_report.json")
+	raw, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("read batch report: %v", err)
+	}
+
+	type batchJob struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	var report struct {
+		Failed int        `json:"failed"`
+		Jobs   []batchJob `json:"jobs"`
+	}
+	if err := json.Unmarshal(raw, &report); err != nil {
+		t.Fatalf("parse batch report: %v", err)
+	}
+	if report.Failed != 1 {
+		t.Fatalf("expected one failed job, got %+v", report)
+	}
+
+	statusByID := map[string]string{}
+	for _, job := range report.Jobs {
+		statusByID[job.ID] = job.Status
+	}
+	if statusByID["first-invalid"] != "failed" {
+		t.Fatalf("expected first-invalid to fail, got %q", statusByID["first-invalid"])
+	}
+	if statusByID["should-skip"] != "skipped" {
+		t.Fatalf("expected should-skip to be skipped, got %q", statusByID["should-skip"])
+	}
+
+	if _, err := os.Stat(filepath.Join(outDir, "should-skip", "model_card.json")); err == nil {
+		t.Fatalf("did not expect artifact for skipped job")
+	}
+}
+
 func runCLI(repoRoot string, args ...string) (string, error) {
 	return runCLIWithEnv(repoRoot, nil, args...)
 }

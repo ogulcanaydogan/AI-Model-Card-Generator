@@ -1,0 +1,19 @@
+version: v1
+defaults:
+  template: standard
+  formats:
+    - md
+    - json
+  lang: en
+  compliance:
+    - eu-ai-act
+jobs:
+  - id: first-invalid
+    source: mlflow
+    model: invalid
+    eval_file: examples/eval_sample.csv
+  - id: should-skip
+    source: custom
+    model: after-fail
+    uri: tests/fixtures/batch/custom_metadata_second.json
+    eval_file: examples/eval_sample.csv

@@ -56,6 +56,7 @@ func usage() {
 
 Usage:
   mcg generate --model <id> --source <hf|mlflow|wandb|custom> --template <standard|eu-ai-act|minimal> --eval-file <path> --formats <md,json,html,pdf> --out-dir <path> --lang <en> --compliance <eu-ai-act>
+  mcg generate --batch <manifest.yaml> --workers <n> --fail-fast <true|false> --out-dir <path>
   mcg validate --schema schemas/model-card.v1.json --input <model-card.json|md>
   mcg check --framework <eu-ai-act|nist|iso42001> --input <model-card.json> --strict <false|true>
 `)
@@ -69,29 +70,15 @@ func runGenerate(args []string) error {
 	evalFile := fs.String("eval-file", "", "Evaluation CSV path")
 	formats := fs.String("formats", "md,json,pdf", "Comma-separated output formats")
 	outDir := fs.String("out-dir", "./artifacts", "Output directory")
+	batchManifest := fs.String("batch", "", "Batch manifest YAML path")
+	workers := fs.Int("workers", 4, "Parallel workers for batch mode")
+	failFastValue := fs.String("fail-fast", "false", "Stop batch mode at first failed job (true|false)")
 	lang := fs.String("lang", "en", "Output language")
 	complianceArg := fs.String("compliance", "eu-ai-act", "Comma-separated compliance frameworks")
 	uri := fs.String("uri", "", "Custom source metadata JSON path")
 	hfBaseURL := fs.String("hf-base-url", "https://huggingface.co", "Hugging Face API base URL")
 	if err := fs.Parse(args); err != nil {
 		return err
-	}
-
-	if strings.TrimSpace(*model) == "" {
-		return fmt.Errorf("--model is required")
-	}
-	if strings.EqualFold(strings.TrimSpace(*source), "wandb") {
-		if _, err := extractors.ParseWandBModelID(*model); err != nil {
-			return fmt.Errorf("invalid --model for wandb source: %w", err)
-		}
-	}
-	if strings.EqualFold(strings.TrimSpace(*source), "mlflow") {
-		if _, err := extractors.ParseMLflowModelID(*model); err != nil {
-			return fmt.Errorf("invalid --model for mlflow source: %w", err)
-		}
-	}
-	if strings.TrimSpace(*evalFile) == "" {
-		return fmt.Errorf("--eval-file is required")
 	}
 
 	fairnessScript := os.Getenv("MCG_FAIRNESS_SCRIPT")
@@ -147,6 +134,31 @@ func runGenerate(args []string) error {
 		DefaultTemplatePath: "templates",
 	}
 
+	if strings.TrimSpace(*batchManifest) != "" {
+		failFast, err := strconv.ParseBool(strings.TrimSpace(*failFastValue))
+		if err != nil {
+			return fmt.Errorf("invalid --fail-fast value %q: use true or false", *failFastValue)
+		}
+		return runGenerateBatch(pipeline, *batchManifest, *outDir, *workers, failFast)
+	}
+
+	if strings.TrimSpace(*model) == "" {
+		return fmt.Errorf("--model is required")
+	}
+	if strings.EqualFold(strings.TrimSpace(*source), "wandb") {
+		if _, err := extractors.ParseWandBModelID(*model); err != nil {
+			return fmt.Errorf("invalid --model for wandb source: %w", err)
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(*source), "mlflow") {
+		if _, err := extractors.ParseMLflowModelID(*model); err != nil {
+			return fmt.Errorf("invalid --model for mlflow source: %w", err)
+		}
+	}
+	if strings.TrimSpace(*evalFile) == "" {
+		return fmt.Errorf("--eval-file is required")
+	}
+
 	opts := core.GenerateOptions{
 		Ref: core.ModelRef{
 			Source: *source,
@@ -174,6 +186,49 @@ func runGenerate(args []string) error {
 		fmt.Printf("- %s: %s\n", format, path)
 	}
 	fmt.Printf("- compliance: %s\n", card.Artifacts.CompliancePath)
+	return nil
+}
+
+func runGenerateBatch(pipeline core.Pipeline, manifestPath, outDir string, workers int, failFast bool) error {
+	manifest, err := core.LoadBatchManifest(manifestPath)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	report, err := pipeline.RunBatch(ctx, core.BatchRunOptions{
+		Manifest: manifest,
+		OutDir:   outDir,
+		Workers:  workers,
+		FailFast: failFast,
+	})
+	if err != nil {
+		return err
+	}
+
+	reportPath := filepath.Join(outDir, "batch_report.json")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return core.Wrap("create batch out-dir", err)
+	}
+	if err := core.WriteBatchReport(reportPath, report); err != nil {
+		return err
+	}
+
+	fmt.Printf("Batch generation finished: total=%d succeeded=%d failed=%d duration_ms=%d\n", report.Total, report.Succeeded, report.Failed, report.DurationMs)
+	fmt.Printf("- report: %s\n", reportPath)
+	for _, job := range report.Jobs {
+		fmt.Printf("- %s [%s]", job.ID, job.Status)
+		if job.Error != "" {
+			fmt.Printf(" error=%s", job.Error)
+		}
+		fmt.Println()
+	}
+
+	if report.HasFailures() {
+		return fmt.Errorf("batch completed with %d failed job(s)", report.Failed)
+	}
 	return nil
 }
 
