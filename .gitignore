@@ -12,3 +12,7 @@ __pycache__/
 
 # OS/editor
 .DS_Store
+
+# Node / Next.js
+node_modules/
+.next/

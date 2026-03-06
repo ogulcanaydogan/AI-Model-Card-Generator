@@ -1,0 +1,213 @@
+:root {
+  --bg-start: #0f1b2d;
+  --bg-end: #153a4a;
+  --panel: #f4f8fb;
+  --ink: #0e2431;
+  --muted: #4e6774;
+  --accent: #0a7f7a;
+  --accent-soft: #0fa196;
+  --danger: #b63b3b;
+  --border: #c5d2dc;
+  --shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at 20% 10%, #1e5167, transparent 48%),
+    linear-gradient(140deg, var(--bg-start), var(--bg-end));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  color: #d9edf8;
+}
+
+.brand {
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.locale-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.locale-link {
+  border: 1px solid rgba(217, 237, 248, 0.35);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.locale-link.active {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: 370px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.panel h1,
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.subtitle {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.badge {
+  font-size: 0.85rem;
+  color: #0b4f63;
+  background: #d7eef7;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.form-grid span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.form-grid input,
+.form-grid select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.form-grid button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+  transition: filter 0.2s ease;
+}
+
+.form-grid button:hover {
+  filter: brightness(1.06);
+}
+
+.form-grid button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.preview-panel {
+  overflow: hidden;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mini-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.details {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  margin-top: 10px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #f8fbfd;
+  padding: 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.markdown-preview {
+  max-height: 340px;
+}
+
+@media (max-width: 980px) {
+  .page-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}

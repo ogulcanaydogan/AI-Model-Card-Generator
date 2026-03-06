@@ -9,6 +9,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 1 support for W&B extraction (`entity/project/run_id`).
 - Phase 2 Sprint 2 support for MLflow extraction (`run:<run_id>`).
 - Phase 2 Sprint 3 support for Carbon estimate + NIST AI RMF checks.
+- Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -220,6 +221,14 @@ Run integration tests with Carbon fixture mode:
 MCG_CARBON_FIXTURE=tests/fixtures/carbon/carbon_fixture.json go test ./tests/integration -v
 ```
 
+Run web UI (Sprint 4 skeleton):
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
 ## Roadmap
 
 ### Phase 1 (implemented baseline)
@@ -237,7 +246,7 @@ MCG_CARBON_FIXTURE=tests/fixtures/carbon/carbon_fixture.json go test ./tests/int
 - MLflow integration (implemented in Sprint 2)
 - Carbon footprint estimator (implemented in Sprint 3)
 - NIST AI RMF rule-based mapping (implemented in Sprint 3)
-- i18n and Next.js web UI
+- i18n and Next.js web UI (Sprint 4 skeleton implemented)
 - NIST AI RMF mapping expansion (deeper policy coverage)
 
 ### Phase 3 (planned)
