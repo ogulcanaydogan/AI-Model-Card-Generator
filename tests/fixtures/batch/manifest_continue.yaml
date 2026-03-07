@@ -12,6 +12,7 @@ jobs:
     source: custom
     model: custom-demo
     uri: tests/fixtures/custom_metadata.json
+    template_file: tests/fixtures/batch/custom-template.tmpl
     eval_file: examples/eval_sample.csv
   - id: malformed-mlflow
     source: mlflow

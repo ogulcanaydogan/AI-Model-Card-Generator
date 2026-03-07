@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.0.1] - 2026-03-07
+
+### Added
+- Custom template builder CLI commands:
+  - `mcg template init --name <name> --out <path> --base <standard|minimal|eu-ai-act>`
+  - `mcg template validate --input <template.tmpl>`
+  - `mcg template preview --input <template.tmpl> --card <model_card.json> --out <preview.md>`
+- `generate` template file override:
+  - new flag `--template-file <path>`
+  - precedence: `--template-file` overrides `--template`
+- Batch manifest template override support:
+  - optional `template_file` on defaults and per-job definitions
+- Additional tests for template builder flow, pipeline template precedence, and batch template file behavior.
+
+### Updated
+- README with v1.0.1 template commands and usage examples.
+- Batch manifest docs and examples to include `template_file`.
+
 ## [v1.0.0] - 2026-03-06
 
 ### Added

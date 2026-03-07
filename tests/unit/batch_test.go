@@ -41,12 +41,14 @@ jobs:
 }
 
 func TestMergeBatchJobValidation(t *testing.T) {
+	defaultTemplateFile := filepath.Join("tests", "fixtures", "batch", "custom-template.tmpl")
 	defaults := core.BatchDefaults{
-		Template:   "standard",
-		Formats:    []string{"json"},
-		Language:   "en",
-		Compliance: []string{"eu-ai-act"},
-		OutDir:     filepath.Join(t.TempDir(), "out"),
+		Template:     "standard",
+		TemplateFile: defaultTemplateFile,
+		Formats:      []string{"json"},
+		Language:     "en",
+		Compliance:   []string{"eu-ai-act"},
+		OutDir:       filepath.Join(t.TempDir(), "out"),
 	}
 
 	if _, err := core.MergeBatchJob(defaults, core.BatchJob{
@@ -83,6 +85,20 @@ func TestMergeBatchJobValidation(t *testing.T) {
 		EvalFile: "examples/eval_sample.csv",
 	}, "./artifacts"); err == nil {
 		t.Fatalf("expected custom uri validation error")
+	}
+
+	merged, err := core.MergeBatchJob(defaults, core.BatchJob{
+		ID:       "custom-ok",
+		Source:   "custom",
+		Model:    "demo",
+		URI:      "tests/fixtures/custom_metadata.json",
+		EvalFile: "examples/eval_sample.csv",
+	}, "./artifacts")
+	if err != nil {
+		t.Fatalf("merge valid batch job: %v", err)
+	}
+	if merged.TemplateFile != defaultTemplateFile {
+		t.Fatalf("expected template_file to be inherited, got %q", merged.TemplateFile)
 	}
 }
 

@@ -12,6 +12,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
 - Phase 2 Sprint 4.1 web source parity (`custom|hf|wandb|mlflow`) and compliance tabs.
 - Phase 3 API server mode (`mcg serve`) and audit trail (`artifacts/audit/runs.jsonl`).
+- v1.0.1 custom template builder (CLI-first): `template init|validate|preview`, `--template-file`.
 - Performance and fairness metrics from evaluation CSV.
 - EU AI Act advisory compliance checks with strict mode option.
 - Export formats: Markdown, JSON, HTML, PDF (Chromium-based).
@@ -70,6 +71,19 @@ go run ./cmd/mcg-cli generate \
   --compliance eu-ai-act
 ```
 
+Custom template override:
+
+```bash
+go run ./cmd/mcg-cli generate \
+  --model demo-model \
+  --source custom \
+  --uri tests/fixtures/custom_metadata.json \
+  --template-file examples/templates/custom-v101.tmpl \
+  --eval-file examples/eval_sample.csv \
+  --formats md,json \
+  --out-dir artifacts/custom-template
+```
+
 ### Generate (W&B)
 
 `--model` must be in this format: `<entity>/<project>/<run_id>`.
@@ -101,6 +115,33 @@ Batch outputs:
 - Per-job artifacts default to `<out-dir>/<job-id>/`
 - Summary report is written to `<out-dir>/batch_report.json`
 - Exit code is non-zero when at least one job fails
+
+### Template Builder (CLI)
+
+Initialize from a built-in base:
+
+```bash
+go run ./cmd/mcg-cli template init \
+  --name "My Custom Template" \
+  --base standard \
+  --out examples/templates/my-custom.tmpl
+```
+
+Validate template placeholders:
+
+```bash
+go run ./cmd/mcg-cli template validate \
+  --input examples/templates/my-custom.tmpl
+```
+
+Preview template against a model card JSON:
+
+```bash
+go run ./cmd/mcg-cli template preview \
+  --input examples/templates/my-custom.tmpl \
+  --card artifacts/model_card.json \
+  --out artifacts/template-preview.md
+```
 
 ### Validate
 
@@ -282,6 +323,12 @@ Run batch fixture integration tests:
 MCG_WANDB_FIXTURE=tests/fixtures/wandb/run_fixture.json go test ./tests/integration -run Batch -v
 ```
 
+Run template command integration tests:
+
+```bash
+go test ./tests/integration -run "Template|GenerateTemplateFile" -v
+```
+
 Run web UI (Sprint 4 skeleton):
 
 ```bash
@@ -325,6 +372,7 @@ npm run test:smoke
 - Batch processing (Sprint 5 implemented)
 - API server mode (Sprint 6 implemented)
 - Audit trail and release hardening (Sprint 7 implemented)
+- Custom template builder (v1.0.1 implemented, CLI-first)
 
 ## Legal Note
 

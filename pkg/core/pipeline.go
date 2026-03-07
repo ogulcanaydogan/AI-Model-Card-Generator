@@ -118,9 +118,9 @@ func (p *Pipeline) Generate(ctx context.Context, opts GenerateOptions) (ModelCar
 	}
 
 	generatedFiles := map[string]string{}
-	templatePath := filepath.Join(p.DefaultTemplatePath, opts.Template+".tmpl")
-	if opts.Template == "" {
-		templatePath = filepath.Join(p.DefaultTemplatePath, "standard.tmpl")
+	templatePath, err := p.resolveTemplatePath(opts)
+	if err != nil {
+		return ModelCard{}, err
 	}
 
 	for _, format := range opts.Formats {
@@ -233,6 +233,26 @@ func defaultIfEmpty(v, fallback string) string {
 	return v
 }
 
+func (p *Pipeline) resolveTemplatePath(opts GenerateOptions) (string, error) {
+	if strings.TrimSpace(opts.TemplateFile) != "" {
+		templatePath, err := resolvePathFromParents(strings.TrimSpace(opts.TemplateFile))
+		if err != nil {
+			return "", Wrap("resolve template file", err)
+		}
+		return templatePath, nil
+	}
+
+	templateName := strings.TrimSpace(opts.Template)
+	if templateName == "" {
+		templateName = "standard"
+	}
+	templatePath, err := resolvePathFromParents(filepath.Join(p.DefaultTemplatePath, templateName+".tmpl"))
+	if err != nil {
+		return "", Wrap("resolve built-in template", err)
+	}
+	return templatePath, nil
+}
+
 func (p *Pipeline) extractMetadataWithRetry(ctx context.Context, extractor Extractor, ref ModelRef) (ModelMetadata, error) {
 	const maxRetries = 2
 
@@ -268,6 +288,38 @@ func shouldRetrySource(source string) bool {
 	default:
 		return false
 	}
+}
+
+func resolvePathFromParents(path string) (string, error) {
+	candidate := filepath.Clean(strings.TrimSpace(path))
+	if candidate == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	if filepath.IsAbs(candidate) {
+		if _, err := os.Stat(candidate); err != nil {
+			return "", err
+		}
+		return candidate, nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	current := cwd
+	for i := 0; i < 8; i++ {
+		resolved := filepath.Join(current, candidate)
+		if _, err := os.Stat(resolved); err == nil {
+			return resolved, nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+	return "", os.ErrNotExist
 }
 
 // EnsureErrorsJoin keeps compatibility for older versions if needed.

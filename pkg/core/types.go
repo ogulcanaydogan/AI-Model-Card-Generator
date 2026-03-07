@@ -124,6 +124,7 @@ type GenerateOptions struct {
 	Ref                  ModelRef
 	EvalFile             string
 	Template             string
+	TemplateFile         string
 	Formats              []string
 	OutDir               string
 	Language             string

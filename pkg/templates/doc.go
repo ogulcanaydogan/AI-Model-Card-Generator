@@ -1,2 +1,2 @@
-// Package templates contains template-related helpers and future builder APIs.
+// Package templates contains template builder and rendering helpers.
 package templates

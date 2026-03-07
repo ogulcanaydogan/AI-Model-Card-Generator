@@ -14,6 +14,7 @@ jobs:
     source: custom
     model: demo-model
     uri: tests/fixtures/custom_metadata.json
+    template_file: examples/templates/custom-v101.tmpl
     eval_file: examples/eval_sample.csv
   - id: hf-card
     source: hf

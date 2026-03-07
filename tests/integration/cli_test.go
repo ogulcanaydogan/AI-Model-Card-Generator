@@ -292,6 +292,15 @@ func TestCLIBatchContinueOnErrorWritesReport(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(outDir, "wandb-ok", "model_card.json")); err != nil {
 		t.Fatalf("expected wandb-ok artifact: %v", err)
 	}
+
+	customMDPath := filepath.Join(outDir, "custom-ok", "model_card.md")
+	customMD, err := os.ReadFile(customMDPath)
+	if err != nil {
+		t.Fatalf("read custom-ok markdown: %v", err)
+	}
+	if !strings.Contains(string(customMD), "# Batch Custom:") {
+		t.Fatalf("expected batch custom template marker in markdown: %s", string(customMD))
+	}
 }
 
 func TestCLIBatchFailFastStopsEarly(t *testing.T) {
@@ -346,6 +355,98 @@ func TestCLIBatchFailFastStopsEarly(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(outDir, "should-skip", "model_card.json")); err == nil {
 		t.Fatalf("did not expect artifact for skipped job")
+	}
+}
+
+func TestCLITemplateInitValidatePreview(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "custom_from_cli.tmpl")
+	previewPath := filepath.Join(tmpDir, "preview.md")
+
+	initOut, err := runCLI(repoRoot,
+		"template", "init",
+		"--name", "CLI Template",
+		"--out", templatePath,
+		"--base", "standard",
+	)
+	if err != nil {
+		t.Fatalf("template init failed: %v\n%s", err, initOut)
+	}
+
+	valOut, err := runCLI(repoRoot,
+		"template", "validate",
+		"--input", templatePath,
+	)
+	if err != nil {
+		t.Fatalf("template validate failed: %v\n%s", err, valOut)
+	}
+
+	prevOut, err := runCLI(repoRoot,
+		"template", "preview",
+		"--input", templatePath,
+		"--card", filepath.Join("tests", "fixtures", "strict_fail_model_card.json"),
+		"--out", previewPath,
+	)
+	if err != nil {
+		t.Fatalf("template preview failed: %v\n%s", err, prevOut)
+	}
+
+	preview, err := os.ReadFile(previewPath)
+	if err != nil {
+		t.Fatalf("read preview output: %v", err)
+	}
+	if !strings.Contains(string(preview), "## Metadata") {
+		t.Fatalf("unexpected preview output: %s", string(preview))
+	}
+}
+
+func TestCLIGenerateTemplateFileOverridesTemplate(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "override.tmpl")
+	outDir := filepath.Join(tmpDir, "artifacts")
+
+	templateContent := `# OVERRIDE {{ .Metadata.Name }}
+
+## Metadata
+- Owner: {{ .Metadata.Owner }}
+
+## Performance
+- Accuracy: {{ printf "%.4f" .Performance.Accuracy }}
+
+## Fairness
+- Demographic Parity Difference: {{ printf "%.4f" .Fairness.DemographicParityDiff }}
+
+## Compliance
+{{ range .Compliance }}- {{ .Framework }}: {{ .Status }}
+{{ end }}`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
+		t.Fatalf("write template file: %v", err)
+	}
+
+	output, err := runCLI(repoRoot,
+		"generate",
+		"--model", "demo-model",
+		"--source", "custom",
+		"--uri", filepath.Join("tests", "fixtures", "custom_metadata.json"),
+		"--eval-file", filepath.Join("examples", "eval_sample.csv"),
+		"--template", "minimal",
+		"--template-file", templatePath,
+		"--formats", "md,json",
+		"--out-dir", outDir,
+	)
+	if err != nil {
+		t.Fatalf("generate with template-file failed: %v\n%s", err, output)
+	}
+
+	mdPath := filepath.Join(outDir, "model_card.md")
+	md, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read markdown output: %v", err)
+	}
+	if !strings.Contains(string(md), "# OVERRIDE") {
+		t.Fatalf("expected custom template output, got: %s", string(md))
 	}
 }
 

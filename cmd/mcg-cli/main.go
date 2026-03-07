@@ -19,6 +19,7 @@ import (
 	"github.com/yapay/ai-model-card-generator/pkg/extractors"
 	"github.com/yapay/ai-model-card-generator/pkg/generators"
 	apisrv "github.com/yapay/ai-model-card-generator/pkg/server"
+	cardtemplates "github.com/yapay/ai-model-card-generator/pkg/templates"
 )
 
 const toolVersion = "v1.0.0"
@@ -51,6 +52,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "serve failed: %v\n", err)
 			os.Exit(1)
 		}
+	case "template":
+		if err := runTemplate(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "template failed: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -64,11 +70,14 @@ func usage() {
 	fmt.Print(`mcg - AI Model Card Generator
 
 Usage:
-  mcg generate --model <id> --source <hf|mlflow|wandb|custom> --template <standard|eu-ai-act|minimal> --eval-file <path> --formats <md,json,html,pdf> --out-dir <path> --lang <en> --compliance <eu-ai-act>
+  mcg generate --model <id> --source <hf|mlflow|wandb|custom> --template <standard|eu-ai-act|minimal> --template-file <path> --eval-file <path> --formats <md,json,html,pdf> --out-dir <path> --lang <en> --compliance <eu-ai-act>
   mcg generate --batch <manifest.yaml> --workers <n> --fail-fast <true|false> --out-dir <path>
   mcg validate --schema schemas/model-card.v1.json --input <model-card.json|md>
   mcg check --framework <eu-ai-act|nist|iso42001> --input <model-card.json> --strict <false|true>
   mcg serve --addr :8080 --read-timeout 30s --write-timeout 180s
+  mcg template init --name <name> --out <path> --base <standard|minimal|eu-ai-act>
+  mcg template validate --input <template.tmpl>
+  mcg template preview --input <template.tmpl> --card <model_card.json> --out <preview.md>
 `)
 }
 
@@ -100,6 +109,7 @@ func runGenerate(args []string) (err error) {
 	model := fs.String("model", "", "Model ID (e.g. bert-base-uncased for hf, entity/project/run_id for wandb, run:<run_id> for mlflow)")
 	source := fs.String("source", "hf", "Model source: hf|mlflow|wandb|custom")
 	templateName := fs.String("template", "standard", "Template: standard|eu-ai-act|minimal")
+	templateFile := fs.String("template-file", "", "Custom template file path (.tmpl). Overrides --template when set")
 	evalFile := fs.String("eval-file", "", "Evaluation CSV path")
 	formats := fs.String("formats", "md,json,pdf", "Comma-separated output formats")
 	outDir := fs.String("out-dir", "./artifacts", "Output directory")
@@ -157,6 +167,7 @@ func runGenerate(args []string) (err error) {
 		},
 		EvalFile:             *evalFile,
 		Template:             *templateName,
+		TemplateFile:         *templateFile,
 		Formats:              splitCSV(*formats),
 		OutDir:               *outDir,
 		Language:             *lang,
@@ -386,6 +397,90 @@ func runServe(args []string) error {
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	return nil
+}
+
+func runTemplate(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("template subcommand is required: init|validate|preview")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(args[0])) {
+	case "init":
+		return runTemplateInit(args[1:])
+	case "validate":
+		return runTemplateValidate(args[1:])
+	case "preview":
+		return runTemplatePreview(args[1:])
+	default:
+		return fmt.Errorf("unknown template subcommand: %s (expected init|validate|preview)", args[0])
+	}
+}
+
+func runTemplateInit(args []string) error {
+	fs := flag.NewFlagSet("template init", flag.ContinueOnError)
+	name := fs.String("name", "", "Template display name")
+	outPath := fs.String("out", "", "Output template path")
+	base := fs.String("base", "standard", "Base template: standard|minimal|eu-ai-act")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(*name) == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if strings.TrimSpace(*outPath) == "" {
+		return fmt.Errorf("--out is required")
+	}
+	if err := cardtemplates.InitTemplate(*name, *outPath, *base); err != nil {
+		return err
+	}
+	fmt.Printf("Template created at %s\n", filepath.Clean(*outPath))
+	return nil
+}
+
+func runTemplateValidate(args []string) error {
+	fs := flag.NewFlagSet("template validate", flag.ContinueOnError)
+	input := fs.String("input", "", "Template file path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*input) == "" {
+		return fmt.Errorf("--input is required")
+	}
+	if err := cardtemplates.ValidateTemplateFile(*input); err != nil {
+		return err
+	}
+	fmt.Println("Template validation succeeded")
+	return nil
+}
+
+func runTemplatePreview(args []string) error {
+	fs := flag.NewFlagSet("template preview", flag.ContinueOnError)
+	input := fs.String("input", "", "Template file path")
+	cardPath := fs.String("card", "", "Model card JSON path")
+	outPath := fs.String("out", "", "Output markdown path")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*input) == "" {
+		return fmt.Errorf("--input is required")
+	}
+	if strings.TrimSpace(*cardPath) == "" {
+		return fmt.Errorf("--card is required")
+	}
+	if strings.TrimSpace(*outPath) == "" {
+		return fmt.Errorf("--out is required")
+	}
+
+	card, err := core.LoadModelCard(*cardPath)
+	if err != nil {
+		return err
+	}
+	if err := cardtemplates.WriteTemplatePreview(*input, *outPath, card); err != nil {
+		return err
+	}
+	fmt.Printf("Template preview written to %s\n", filepath.Clean(*outPath))
 	return nil
 }
 

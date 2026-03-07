@@ -39,6 +39,7 @@ type GenerateRequest struct {
 	URI                  string        `json:"uri"`
 	EvalFile             string        `json:"eval_file"`
 	Template             string        `json:"template"`
+	TemplateFile         string        `json:"template_file"`
 	Formats              []string      `json:"formats"`
 	OutDir               string        `json:"out_dir"`
 	Language             string        `json:"language"`
@@ -335,6 +336,7 @@ func (s *APIServer) toGenerateOptions(req GenerateRequest) (core.GenerateOptions
 		},
 		EvalFile:             evalFile,
 		Template:             template,
+		TemplateFile:         strings.TrimSpace(req.TemplateFile),
 		Formats:              formats,
 		OutDir:               outDir,
 		Language:             language,

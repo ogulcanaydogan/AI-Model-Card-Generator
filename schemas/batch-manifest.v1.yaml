@@ -9,6 +9,7 @@
 #
 # defaults:
 # - template: string
+# - template_file: string (optional path to custom .tmpl)
 # - formats: [md, json, html, pdf]
 # - lang: string
 # - compliance: [eu-ai-act, nist, iso42001]
@@ -22,7 +23,7 @@
 #
 # jobs[] optional:
 # - uri: required only for custom source
-# - template, formats, lang, compliance, out_dir
+# - template, template_file, formats, lang, compliance, out_dir
 #
 # Source-specific model formats:
 # - wandb: <entity>/<project>/<run_id>
@@ -44,4 +45,5 @@ jobs:
     source: custom
     model: demo-model
     uri: tests/fixtures/custom_metadata.json
+    template_file: examples/templates/custom-v101.tmpl
     eval_file: examples/eval_sample.csv

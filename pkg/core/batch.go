@@ -27,25 +27,27 @@ type BatchManifest struct {
 
 // BatchDefaults defines default values applied to each job.
 type BatchDefaults struct {
-	Template   string   `json:"template,omitempty" yaml:"template,omitempty"`
-	Formats    []string `json:"formats,omitempty" yaml:"formats,omitempty"`
-	Language   string   `json:"lang,omitempty" yaml:"lang,omitempty"`
-	Compliance []string `json:"compliance,omitempty" yaml:"compliance,omitempty"`
-	OutDir     string   `json:"out_dir,omitempty" yaml:"out_dir,omitempty"`
+	Template     string   `json:"template,omitempty" yaml:"template,omitempty"`
+	TemplateFile string   `json:"template_file,omitempty" yaml:"template_file,omitempty"`
+	Formats      []string `json:"formats,omitempty" yaml:"formats,omitempty"`
+	Language     string   `json:"lang,omitempty" yaml:"lang,omitempty"`
+	Compliance   []string `json:"compliance,omitempty" yaml:"compliance,omitempty"`
+	OutDir       string   `json:"out_dir,omitempty" yaml:"out_dir,omitempty"`
 }
 
 // BatchJob defines one generate execution in batch mode.
 type BatchJob struct {
-	ID         string   `json:"id" yaml:"id"`
-	Source     string   `json:"source" yaml:"source"`
-	Model      string   `json:"model" yaml:"model"`
-	EvalFile   string   `json:"eval_file" yaml:"eval_file"`
-	URI        string   `json:"uri,omitempty" yaml:"uri,omitempty"`
-	Template   string   `json:"template,omitempty" yaml:"template,omitempty"`
-	Formats    []string `json:"formats,omitempty" yaml:"formats,omitempty"`
-	Language   string   `json:"lang,omitempty" yaml:"lang,omitempty"`
-	Compliance []string `json:"compliance,omitempty" yaml:"compliance,omitempty"`
-	OutDir     string   `json:"out_dir,omitempty" yaml:"out_dir,omitempty"`
+	ID           string   `json:"id" yaml:"id"`
+	Source       string   `json:"source" yaml:"source"`
+	Model        string   `json:"model" yaml:"model"`
+	EvalFile     string   `json:"eval_file" yaml:"eval_file"`
+	URI          string   `json:"uri,omitempty" yaml:"uri,omitempty"`
+	Template     string   `json:"template,omitempty" yaml:"template,omitempty"`
+	TemplateFile string   `json:"template_file,omitempty" yaml:"template_file,omitempty"`
+	Formats      []string `json:"formats,omitempty" yaml:"formats,omitempty"`
+	Language     string   `json:"lang,omitempty" yaml:"lang,omitempty"`
+	Compliance   []string `json:"compliance,omitempty" yaml:"compliance,omitempty"`
+	OutDir       string   `json:"out_dir,omitempty" yaml:"out_dir,omitempty"`
 }
 
 // BatchRunOptions configures batch generation execution.
@@ -161,6 +163,11 @@ func MergeBatchJob(defaults BatchDefaults, job BatchJob, fallbackOutDir string) 
 		template = "standard"
 	}
 
+	templateFile := strings.TrimSpace(job.TemplateFile)
+	if templateFile == "" {
+		templateFile = strings.TrimSpace(defaults.TemplateFile)
+	}
+
 	formats := cloneStringSlice(job.Formats)
 	if len(formats) == 0 {
 		formats = cloneStringSlice(defaults.Formats)
@@ -205,6 +212,7 @@ func MergeBatchJob(defaults BatchDefaults, job BatchJob, fallbackOutDir string) 
 		},
 		EvalFile:             evalFile,
 		Template:             template,
+		TemplateFile:         templateFile,
 		Formats:              formats,
 		OutDir:               outDir,
 		Language:             lang,

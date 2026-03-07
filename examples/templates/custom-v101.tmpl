@@ -1,0 +1,13 @@
+{{/* Custom template example for v1.0.1 */}}
+# Custom Model Card: {{ .Metadata.Name }}
+
+## Owner
+- {{ .Metadata.Owner }}
+
+## Quality Snapshot
+- Accuracy: {{ printf "%.4f" .Performance.Accuracy }}
+- F1: {{ printf "%.4f" .Performance.F1 }}
+
+## Governance
+- Maintainer: {{ .Governance.Maintainer }}
+- Language: {{ .Governance.Language }}

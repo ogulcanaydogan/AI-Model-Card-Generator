@@ -2,13 +2,12 @@ package generators
 
 import (
 	"bytes"
+	"fmt"
 	"html"
-	"os"
-	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/yapay/ai-model-card-generator/pkg/core"
+	cardtemplates "github.com/yapay/ai-model-card-generator/pkg/templates"
 	"github.com/yuin/goldmark"
 )
 
@@ -56,24 +55,21 @@ const defaultMarkdownTemplate = `# Model Card: {{ .Metadata.Name }}
 `
 
 func renderMarkdown(card core.ModelCard, templatePath string) (string, error) {
-	tmplString := defaultMarkdownTemplate
-	if strings.TrimSpace(templatePath) != "" {
-		if _, err := os.Stat(templatePath); err == nil {
-			data, err := os.ReadFile(filepath.Clean(templatePath))
-			if err != nil {
-				return "", err
-			}
-			tmplString = string(data)
+	if templatePath != "" {
+		rendered, err := cardtemplates.RenderTemplateFile(templatePath, card)
+		if err != nil {
+			return "", fmt.Errorf("template file render: %w", err)
 		}
+		return rendered, nil
 	}
 
-	tmpl, err := template.New("card").Parse(tmplString)
+	tmpl, err := template.New("card").Parse(defaultMarkdownTemplate)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("default template parse: %w", err)
 	}
 	var out bytes.Buffer
 	if err := tmpl.Execute(&out, card); err != nil {
-		return "", err
+		return "", fmt.Errorf("default template execute: %w", err)
 	}
 	return out.String(), nil
 }
