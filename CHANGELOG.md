@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.1.0] - 2026-03-07
+
+### Added
+- Path-based web template builder API endpoints:
+  - `POST /api/template/init`
+  - `POST /api/template/validate`
+  - `POST /api/template/preview`
+- Web generate flow support for template file overrides:
+  - `POST /api/generate` now accepts optional `templateFile` and `templateSource`
+  - template file mode maps to CLI `--template-file`
+- Repository-root path guard for web template operations:
+  - absolute paths and traversal (`..`) are rejected with 400 responses
+- Web test coverage for template builder parity:
+  - unit tests for path guard and template payload validation
+  - smoke test coverage for `init -> validate -> preview` chain and invalid path rejection
+
+### Updated
+- Web UI with template source toggle (`built-in` / `template-file`) and template actions panel (`init`, `validate`, `preview`).
+- README and web README with v1.1.0 template endpoint usage notes.
+
 ## [v1.0.1] - 2026-03-07
 
 ### Added

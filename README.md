@@ -373,6 +373,7 @@ All template file paths are validated as repository-relative paths.
 - NIST AI RMF rule-based mapping (implemented in Sprint 3)
 - i18n and Next.js web UI (Sprint 4 skeleton implemented)
 - Web source parity and compliance tab UX (Sprint 4.1 implemented)
+- Web template builder (v1.1.0, path-based) implemented
 - NIST checker deepening + function-based compliance UX hardening (Sprint 4.2 implemented)
 - NIST AI RMF mapping expansion (Phase 2.3 implemented)
 
