@@ -1,89 +1,21 @@
-import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { NextResponse } from "next/server";
 
+import {
+  buildCLIEnv,
+  resolveCLICommand,
+  resolveRepoRoot,
+  runCommand
+} from "@/lib/apiRuntime";
+import { resolveSafeRepoPath } from "@/lib/pathGuard";
 import { normalizeSource, validateGeneratePayload } from "@/lib/sourceValidation";
+import { normalizeTemplateSource, validateTemplateSelection } from "@/lib/templateValidation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-async function pathExists(candidate) {
-  try {
-    await fs.access(candidate);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveRepoRoot() {
-  const cwd = process.cwd();
-  if (await pathExists(path.join(cwd, "go.mod"))) {
-    return cwd;
-  }
-  const parent = path.resolve(cwd, "..");
-  if (await pathExists(path.join(parent, "go.mod"))) {
-    return parent;
-  }
-  throw new Error("Could not resolve repository root containing go.mod");
-}
-
-function runCommand(bin, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, options);
-    let stdout = "";
-    let stderr = "";
-    const timeoutMs = Number(options.timeoutMs || 180000);
-    let completed = false;
-    const timeoutID = setTimeout(() => {
-      if (completed) {
-        return;
-      }
-      child.kill("SIGTERM");
-      setTimeout(() => {
-        if (!completed) {
-          child.kill("SIGKILL");
-        }
-      }, 2000);
-      completed = true;
-      reject(
-        new Error(
-          `${bin} ${args.join(" ")} timed out after ${timeoutMs}ms: ${stderr || stdout}`
-        )
-      );
-    }, timeoutMs);
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.on("error", (err) => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      clearTimeout(timeoutID);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      clearTimeout(timeoutID);
-      if (code !== 0) {
-        reject(new Error(`${bin} ${args.join(" ")} failed (${code}): ${stderr || stdout}`));
-        return;
-      }
-      resolve({ stdout, stderr });
-    });
-  });
-}
 
 export async function POST(request) {
   let tempDir;
@@ -94,6 +26,8 @@ export async function POST(request) {
     const evalFile = String(payload?.evalFile || "").trim() || "examples/eval_sample.csv";
     const metadataFile = String(payload?.metadataFile || "").trim();
     const template = String(payload?.template || "").trim() || "standard";
+    const templateSource = normalizeTemplateSource(payload?.templateSource);
+    const templateFile = String(payload?.templateFile || "").trim();
     const compliance = String(payload?.compliance || "").trim() || "eu-ai-act,nist,iso42001";
     const lang = String(payload?.locale || "").trim() || "en";
 
@@ -105,8 +39,30 @@ export async function POST(request) {
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
+    const templateValidationError = validateTemplateSelection({
+      templateSource,
+      template,
+      templateFile
+    });
+    if (templateValidationError) {
+      return NextResponse.json({ error: templateValidationError }, { status: 400 });
+    }
 
     const repoRoot = await resolveRepoRoot();
+    let safeTemplateFile = "";
+    if (templateSource === "template-file") {
+      try {
+        const resolved = resolveSafeRepoPath(repoRoot, templateFile);
+        safeTemplateFile = resolved.relative;
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error: `invalid --templateFile: ${error instanceof Error ? error.message : "invalid path"}`
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcg-web-"));
 
@@ -131,6 +87,9 @@ export async function POST(request) {
       "--compliance",
       compliance
     ];
+    if (safeTemplateFile) {
+      generateArgs.push("--template-file", safeTemplateFile);
+    }
     if (source === "custom") {
       generateArgs.splice(7, 0, "--uri", metadataFile);
     }
@@ -138,51 +97,29 @@ export async function POST(request) {
       generateArgs.push("--hf-base-url", process.env.MCG_WEB_HF_BASE_URL);
     }
 
-    const env = {
-      ...process.env,
-      MCG_PYTHON_BIN: process.env.MCG_PYTHON_BIN || "python3",
-      MCG_FAIRNESS_SCRIPT:
-        process.env.MCG_FAIRNESS_SCRIPT || "tests/fixtures/fairness_stub.py",
-      MCG_CARBON_FIXTURE:
-        process.env.MCG_CARBON_FIXTURE || "tests/fixtures/carbon/carbon_fixture.json",
-      MCG_WANDB_FIXTURE: process.env.MCG_WANDB_FIXTURE || "",
-      MCG_MLFLOW_FIXTURE: process.env.MCG_MLFLOW_FIXTURE || ""
-    };
-
-    const cliBin = String(env.MCG_CLI_BIN || "").trim();
+    const env = buildCLIEnv();
     const commandTimeoutMs = Number(process.env.MCG_WEB_COMMAND_TIMEOUT_MS || "180000");
-    const cliCmd = (args) =>
-      cliBin
-        ? {
-            bin: cliBin,
-            args
-          }
-        : {
-            bin: "go",
-            args: ["run", "./cmd/mcg-cli", ...args]
-          };
-
-    const generateCmd = cliCmd(generateArgs.slice(2));
+    const generateCmd = resolveCLICommand(generateArgs.slice(2), env);
     const generated = await runCommand(generateCmd.bin, generateCmd.args, {
       cwd: repoRoot,
       env,
       timeoutMs: commandTimeoutMs
     });
 
-    const validateCmd = cliCmd([
+    const validateCmd = resolveCLICommand([
       "validate",
       "--schema",
       "schemas/model-card.v1.json",
       "--input",
       path.join(tempDir, "model_card.json")
-    ]);
+    ], env);
     await runCommand(validateCmd.bin, validateCmd.args, {
       cwd: repoRoot,
       env,
       timeoutMs: commandTimeoutMs
     });
 
-    const checkCmd = cliCmd([
+    const checkCmd = resolveCLICommand([
       "check",
       "--framework",
       "nist",
@@ -190,7 +127,7 @@ export async function POST(request) {
       path.join(tempDir, "model_card.json"),
       "--strict",
       "false"
-    ]);
+    ], env);
     const nistCheck = await runCommand(checkCmd.bin, checkCmd.args, {
       cwd: repoRoot,
       env,

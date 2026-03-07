@@ -3,13 +3,21 @@
 import { useMemo, useState } from "react";
 import { normalizeSource, validateGeneratePayload } from "@/lib/sourceValidation";
 import { buildNISTFunctionSections, summarizeNISTOverall } from "@/lib/nistSections";
+import { normalizeTemplateSource, validateTemplateSelection } from "@/lib/templateValidation";
 
 const DEFAULT_FORM = {
   source: "custom",
   model: "demo-model",
   evalFile: "examples/eval_sample.csv",
   metadataFile: "tests/fixtures/custom_metadata.json",
+  templateSource: "built-in",
   template: "standard",
+  templateFile: "tests/fixtures/batch/custom-template.tmpl",
+  templateInitName: "Web Custom Template",
+  templateInitBase: "standard",
+  templateInitOut: "artifacts/web/templates/web-custom.tmpl",
+  templatePreviewCard: "tests/fixtures/strict_fail_model_card.json",
+  templatePreviewOut: "artifacts/web/templates/web-preview.md",
   compliance: "eu-ai-act,nist,iso42001"
 };
 
@@ -38,8 +46,10 @@ function formatScoreContribution(value) {
 export default function GeneratorPageClient({ locale, dict }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [result, setResult] = useState(null);
+  const [templateAction, setTemplateAction] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isTemplateLoading, setIsTemplateLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("nist");
 
   const complianceMap = useMemo(() => {
@@ -54,10 +64,67 @@ export default function GeneratorPageClient({ locale, dict }) {
 
   const carbon = result?.card?.carbon;
   const normalizedSource = normalizeSource(form.source);
+  const normalizedTemplateSource = normalizeTemplateSource(form.templateSource);
 
   const onChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const runTemplateAction = async (action) => {
+    const endpointByAction = {
+      init: "/api/template/init",
+      validate: "/api/template/validate",
+      preview: "/api/template/preview"
+    };
+    const payloadByAction = {
+      init: {
+        name: form.templateInitName,
+        base: form.templateInitBase,
+        out: form.templateInitOut
+      },
+      validate: {
+        input: form.templateFile
+      },
+      preview: {
+        input: form.templateFile,
+        card: form.templatePreviewCard,
+        out: form.templatePreviewOut
+      }
+    };
+
+    const endpoint = endpointByAction[action];
+    const payload = payloadByAction[action];
+    if (!endpoint || !payload) {
+      return;
+    }
+
+    setError("");
+    setIsTemplateLoading(true);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body?.error || "Template action failed");
+      }
+      setTemplateAction({ action, ...body });
+      if (action === "init" && body?.outputPath) {
+        setForm((prev) => ({
+          ...prev,
+          templateFile: body.outputPath,
+          templateSource: "template-file"
+        }));
+      }
+    } catch (err) {
+      setTemplateAction(null);
+      setError(err.message);
+    } finally {
+      setIsTemplateLoading(false);
+    }
   };
 
   const onSubmit = async (event) => {
@@ -68,6 +135,12 @@ export default function GeneratorPageClient({ locale, dict }) {
     if (validationError) {
       setIsLoading(false);
       setError(validationError);
+      return;
+    }
+    const templateValidationError = validateTemplateSelection(form);
+    if (templateValidationError) {
+      setIsLoading(false);
+      setError(templateValidationError);
       return;
     }
     try {
@@ -139,13 +212,33 @@ export default function GeneratorPageClient({ locale, dict }) {
           </label>
 
           <label>
+            <span>{dict.templateSource}</span>
+            <select name="templateSource" value={form.templateSource} onChange={onChange}>
+              <option value="built-in">{dict.templateSourceBuiltIn}</option>
+              <option value="template-file">{dict.templateSourceFile}</option>
+            </select>
+          </label>
+
+          <label>
             <span>{dict.template}</span>
-            <select name="template" value={form.template} onChange={onChange}>
+            <select
+              name="template"
+              value={form.template}
+              onChange={onChange}
+              disabled={normalizedTemplateSource !== "built-in"}
+            >
               <option value="standard">standard</option>
               <option value="eu-ai-act">eu-ai-act</option>
               <option value="minimal">minimal</option>
             </select>
           </label>
+
+          {normalizedTemplateSource === "template-file" ? (
+            <label>
+              <span>{dict.templateFile}</span>
+              <input name="templateFile" value={form.templateFile} onChange={onChange} required />
+            </label>
+          ) : null}
 
           <label>
             <span>{dict.compliance}</span>
@@ -156,6 +249,88 @@ export default function GeneratorPageClient({ locale, dict }) {
             {isLoading ? dict.generating : dict.generate}
           </button>
         </form>
+
+        <section className="details">
+          <h3>{dict.templateActions}</h3>
+          <label>
+            <span>{dict.templateInitName}</span>
+            <input
+              name="templateInitName"
+              value={form.templateInitName}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            />
+          </label>
+          <label>
+            <span>{dict.templateInitBase}</span>
+            <select
+              name="templateInitBase"
+              value={form.templateInitBase}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            >
+              <option value="standard">standard</option>
+              <option value="eu-ai-act">eu-ai-act</option>
+              <option value="minimal">minimal</option>
+            </select>
+          </label>
+          <label>
+            <span>{dict.templateInitOut}</span>
+            <input
+              name="templateInitOut"
+              value={form.templateInitOut}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            />
+          </label>
+          <label>
+            <span>{dict.templateFile}</span>
+            <input
+              name="templateFile"
+              value={form.templateFile}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            />
+          </label>
+          <label>
+            <span>{dict.templatePreviewCard}</span>
+            <input
+              name="templatePreviewCard"
+              value={form.templatePreviewCard}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            />
+          </label>
+          <label>
+            <span>{dict.templatePreviewOut}</span>
+            <input
+              name="templatePreviewOut"
+              value={form.templatePreviewOut}
+              onChange={onChange}
+              disabled={isTemplateLoading}
+            />
+          </label>
+
+          <div className="inline-actions">
+            <button type="button" onClick={() => runTemplateAction("init")} disabled={isTemplateLoading}>
+              {dict.initTemplate}
+            </button>
+            <button
+              type="button"
+              onClick={() => runTemplateAction("validate")}
+              disabled={isTemplateLoading}
+            >
+              {dict.validateTemplate}
+            </button>
+            <button
+              type="button"
+              onClick={() => runTemplateAction("preview")}
+              disabled={isTemplateLoading}
+            >
+              {dict.previewTemplate}
+            </button>
+          </div>
+        </section>
 
         {error ? <p className="error">{error}</p> : null}
       </article>
@@ -287,6 +462,21 @@ export default function GeneratorPageClient({ locale, dict }) {
             </section>
           </>
         ) : null}
+
+        <section className="details">
+          <h3>{dict.templateActionResult}</h3>
+          {!templateAction ? <p className="muted">{dict.templateActionNone}</p> : null}
+          {templateAction?.action ? (
+            <p>
+              <strong>{templateAction.action}</strong>
+            </p>
+          ) : null}
+          {templateAction?.outputPath ? <p>{templateAction.outputPath}</p> : null}
+          {templateAction?.logs ? <pre>{templateAction.logs}</pre> : null}
+          {templateAction?.markdown ? (
+            <pre className="markdown-preview">{templateAction.markdown}</pre>
+          ) : null}
+        </section>
       </article>
     </section>
   );

@@ -178,8 +178,50 @@ a {
   padding-top: 12px;
 }
 
+.details label {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.details label span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.details input,
+.details select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
 .details h5 {
   margin-bottom: 6px;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.inline-actions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 11px;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+}
+
+.inline-actions button:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .tabs {

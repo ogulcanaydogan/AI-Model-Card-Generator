@@ -11,6 +11,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 3 support for Carbon estimate + NIST AI RMF checks.
 - Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
 - Phase 2 Sprint 4.1 web source parity (`custom|hf|wandb|mlflow`) and compliance tabs.
+- v1.1.0 web template builder (path-based): `/api/template/init|validate|preview` + `templateFile` generate flow.
 - Phase 3 API server mode (`mcg serve`) and audit trail (`artifacts/audit/runs.jsonl`).
 - v1.0.1 custom template builder (CLI-first): `template init|validate|preview`, `--template-file`.
 - Performance and fairness metrics from evaluation CSV.
@@ -344,6 +345,14 @@ cd web
 npm run test:unit
 npm run test:smoke
 ```
+
+Web template endpoints (v1.1.0 path-based):
+
+- `POST /api/template/init`
+- `POST /api/template/validate`
+- `POST /api/template/preview`
+
+All template file paths are validated as repository-relative paths.
 
 ## Roadmap
 

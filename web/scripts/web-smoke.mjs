@@ -59,8 +59,8 @@ async function waitForReady(url, attempts = 60) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
-async function postGenerate(port, payload) {
-  const response = await fetch(`http://127.0.0.1:${port}/api/generate`, {
+async function postJSON(port, endpoint, payload) {
+  const response = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -72,6 +72,10 @@ async function postGenerate(port, payload) {
     body = {};
   }
   return { status: response.status, body };
+}
+
+async function postGenerate(port, payload) {
+  return postJSON(port, "/api/generate", payload);
 }
 
 async function stopChildProcess(child) {
@@ -119,16 +123,73 @@ async function run() {
   try {
     await waitForReady(`http://127.0.0.1:${port}/en`);
 
+    const uniqueSuffix = Date.now();
+    const templateInitOut = `artifacts/web-smoke/templates/template-${uniqueSuffix}.tmpl`;
+    const templatePreviewOut = `artifacts/web-smoke/previews/template-${uniqueSuffix}.md`;
+
+    const templateInit = await postJSON(port, "/api/template/init", {
+      name: "Smoke Template",
+      base: "standard",
+      out: templateInitOut
+    });
+    if (templateInit.status !== 200 || !String(templateInit.body?.outputPath || "").endsWith(".tmpl")) {
+      throw new Error(
+        `template init failed: status=${templateInit.status} body=${JSON.stringify(templateInit.body)}`
+      );
+    }
+
+    const templateValidate = await postJSON(port, "/api/template/validate", {
+      input: templateInitOut
+    });
+    if (templateValidate.status !== 200 || templateValidate.body?.valid !== true) {
+      throw new Error(
+        `template validate failed: status=${templateValidate.status} body=${JSON.stringify(templateValidate.body)}`
+      );
+    }
+
+    const templatePreview = await postJSON(port, "/api/template/preview", {
+      input: templateInitOut,
+      card: "tests/fixtures/strict_fail_model_card.json",
+      out: templatePreviewOut
+    });
+    if (
+      templatePreview.status !== 200 ||
+      !templatePreview.body?.markdown ||
+      !String(templatePreview.body?.outputPath || "").endsWith(".md")
+    ) {
+      throw new Error(
+        `template preview failed: status=${templatePreview.status} body=${JSON.stringify(templatePreview.body)}`
+      );
+    }
+
+    const badTemplatePath = await postJSON(port, "/api/template/validate", {
+      input: "../outside-repo.tmpl"
+    });
+    if (
+      badTemplatePath.status !== 400 ||
+      !String(badTemplatePath.body?.error || "").includes("invalid --input path")
+    ) {
+      throw new Error(
+        `template path guard failed: status=${badTemplatePath.status} body=${JSON.stringify(badTemplatePath.body)}`
+      );
+    }
+
     const custom = await postGenerate(port, {
       locale: "en",
       source: "custom",
       model: "demo-model",
       metadataFile: "tests/fixtures/custom_metadata.json",
       evalFile: "examples/eval_sample.csv",
+      templateSource: "template-file",
+      templateFile: "tests/fixtures/batch/custom-template.tmpl",
       template: "standard",
       compliance: "eu-ai-act,nist"
     });
-    if (custom.status !== 200 || !custom.body?.card?.carbon) {
+    if (
+      custom.status !== 200 ||
+      !custom.body?.card?.carbon ||
+      !String(custom.body?.markdown || "").includes("Batch Custom:")
+    ) {
       throw new Error(`custom flow failed: status=${custom.status} body=${JSON.stringify(custom.body)}`);
     }
 
@@ -179,6 +240,10 @@ async function run() {
     console.log(
       JSON.stringify(
         {
+          templateInit: templateInit.status,
+          templateValidate: templateValidate.status,
+          templatePreview: templatePreview.status,
+          badTemplatePath: badTemplatePath.status,
           custom: custom.status,
           hf: hf.status,
           badWandb: badWandb.status,
