@@ -24,6 +24,21 @@ type APIServer struct {
 	SchemaPath  string
 	AuditLogger *core.AuditLogger
 	ToolVersion string
+
+	RequireAuth bool
+	APIKeys     map[string]struct{}
+
+	RateLimitEnabled bool
+	RateLimitRPM     int
+	RateLimitBurst   int
+
+	GenerateTimeout time.Duration
+	ValidateTimeout time.Duration
+	CheckTimeout    time.Duration
+
+	LogWriter io.Writer
+
+	rateLimiter *RateLimiter
 }
 
 type apiErrorResponse struct {
@@ -62,16 +77,68 @@ type CheckRequest struct {
 
 // Handler builds the HTTP handler for API mode.
 func (s *APIServer) Handler() http.Handler {
+	s.ensureDefaults()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
+	mux.HandleFunc("/readyz", s.handleReadyz)
 	mux.HandleFunc("/generate", s.handleGenerate)
 	mux.HandleFunc("/validate", s.handleValidate)
 	mux.HandleFunc("/check", s.handleCheck)
-	return mux
+	return s.withMiddlewares(mux)
 }
 
 func (s *APIServer) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *APIServer) handleReadyz(w http.ResponseWriter, _ *http.Request) {
+	checks := map[string]string{}
+	ready := true
+
+	if s.AuditLogger == nil {
+		ready = false
+		checks["audit_logger"] = "missing"
+	} else {
+		checks["audit_logger"] = "ok"
+	}
+	if strings.TrimSpace(s.SchemaPath) == "" {
+		ready = false
+		checks["schema"] = "missing"
+	} else if _, err := os.Stat(s.SchemaPath); err != nil {
+		ready = false
+		checks["schema"] = err.Error()
+	} else {
+		checks["schema"] = "ok"
+	}
+	if len(s.Pipeline.Extractors) == 0 {
+		ready = false
+		checks["extractors"] = "missing"
+	} else {
+		checks["extractors"] = "ok"
+	}
+	if len(s.Pipeline.Generators) == 0 {
+		ready = false
+		checks["generators"] = "missing"
+	} else {
+		checks["generators"] = "ok"
+	}
+	if len(s.Pipeline.ComplianceCheckers) == 0 {
+		ready = false
+		checks["compliance_checkers"] = "missing"
+	} else {
+		checks["compliance_checkers"] = "ok"
+	}
+
+	status := "ready"
+	httpStatus := http.StatusOK
+	if !ready {
+		status = "not_ready"
+		httpStatus = http.StatusServiceUnavailable
+	}
+	writeJSON(w, httpStatus, map[string]any{
+		"status": status,
+		"checks": checks,
+	})
 }
 
 func (s *APIServer) handleGenerate(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +169,7 @@ func (s *APIServer) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	record.Frameworks = opts.ComplianceFrameworks
 
 	started := time.Now()
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), s.GenerateTimeout)
 	defer cancel()
 
 	card, opErr := s.Pipeline.Generate(ctx, opts)
@@ -155,13 +222,23 @@ func (s *APIServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	started := time.Now()
+	ctx, cancel := context.WithTimeout(r.Context(), s.ValidateTimeout)
+	defer cancel()
 
 	ext := strings.ToLower(filepath.Ext(req.Input))
 	var opErr error
 	switch ext {
 	case ".json":
+		if err := ctx.Err(); err != nil {
+			opErr = err
+			break
+		}
 		opErr = core.ValidateJSONSchema(schema, req.Input)
 	case ".md":
+		if err := ctx.Err(); err != nil {
+			opErr = err
+			break
+		}
 		opErr = validateMarkdownCard(req.Input)
 	default:
 		opErr = fmt.Errorf("%w: unsupported input extension: %s", ErrInvalidInput, ext)
@@ -213,6 +290,8 @@ func (s *APIServer) handleCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	record.Frameworks = frameworks
 	started := time.Now()
+	ctx, cancel := context.WithTimeout(r.Context(), s.CheckTimeout)
+	defer cancel()
 
 	card, opErr := core.LoadModelCard(req.Input)
 	if opErr != nil {
@@ -239,7 +318,11 @@ func (s *APIServer) handleCheck(w http.ResponseWriter, r *http.Request) {
 			opErr = fmt.Errorf("%w: unsupported framework: %s", ErrInvalidInput, fw)
 			break
 		}
-		report, err := checker.Check(r.Context(), card, core.CheckOptions{Strict: req.Strict})
+		if err := ctx.Err(); err != nil {
+			opErr = err
+			break
+		}
+		report, err := checker.Check(ctx, card, core.CheckOptions{Strict: req.Strict})
 		if err != nil {
 			opErr = err
 			break
@@ -369,6 +452,9 @@ func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
 
 func writeAPIError(w http.ResponseWriter, err error, details any) {
 	statusCode, code := ClassifyAPIError(err)
+	if code != "" {
+		w.Header().Set("X-MCG-Error-Code", code)
+	}
 	writeJSON(w, statusCode, apiErrorResponse{
 		Code:    code,
 		Message: err.Error(),

@@ -11,6 +11,12 @@ import (
 var (
 	// ErrInvalidInput identifies malformed requests or unsupported request values.
 	ErrInvalidInput = errors.New("invalid input")
+	// ErrUnauthorized identifies missing API credentials.
+	ErrUnauthorized = errors.New("unauthorized")
+	// ErrForbidden identifies invalid credentials.
+	ErrForbidden = errors.New("forbidden")
+	// ErrRateLimited identifies throttled requests.
+	ErrRateLimited = errors.New("rate limited")
 	// ErrComplianceFailed identifies strict compliance failures.
 	ErrComplianceFailed = errors.New("compliance failed")
 )
@@ -22,6 +28,12 @@ func ClassifyAPIError(err error) (statusCode int, code string) {
 		return http.StatusOK, ""
 	case errors.Is(err, ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, ErrUnauthorized):
+		return http.StatusUnauthorized, "unauthorized"
+	case errors.Is(err, ErrForbidden):
+		return http.StatusForbidden, "unauthorized"
+	case errors.Is(err, ErrRateLimited):
+		return http.StatusTooManyRequests, "rate_limited"
 	case errors.Is(err, core.ErrUnsupportedSource):
 		return http.StatusBadRequest, "unsupported_source"
 	case errors.Is(err, core.ErrUnsupportedFormat):
@@ -44,6 +56,9 @@ func ClassifyAPIError(err error) (statusCode int, code string) {
 		}
 		if strings.Contains(low, "invalid --") || strings.Contains(low, "expected format") {
 			return http.StatusBadRequest, "invalid_input"
+		}
+		if strings.Contains(low, "rate limit") {
+			return http.StatusTooManyRequests, "rate_limited"
 		}
 		return http.StatusInternalServerError, "internal_error"
 	}

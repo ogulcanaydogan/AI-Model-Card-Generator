@@ -74,7 +74,7 @@ Usage:
   mcg generate --batch <manifest.yaml> --workers <n> --fail-fast <true|false> --out-dir <path>
   mcg validate --schema schemas/model-card.v1.json --input <model-card.json|md>
   mcg check --framework <eu-ai-act|nist|iso42001> --input <model-card.json> --strict <false|true>
-  mcg serve --addr :8080 --read-timeout 30s --write-timeout 180s
+  mcg serve --addr :8080 --read-timeout 30s --write-timeout 180s  # /healthz and /readyz
   mcg template init --name <name> --out <path> --base <standard|minimal|eu-ai-act>
   mcg template validate --input <template.tmpl>
   mcg template preview --input <template.tmpl> --card <model_card.json> --out <preview.md>
@@ -379,11 +379,26 @@ func runServe(args []string) error {
 		return err
 	}
 
+	requireAuth := envBool("MCG_REQUIRE_AUTH", false)
+	apiKeys := apisrv.ParseAPIKeys(os.Getenv("MCG_API_KEYS"))
+	if requireAuth && len(apiKeys) == 0 {
+		return fmt.Errorf("MCG_REQUIRE_AUTH=true but MCG_API_KEYS is empty")
+	}
+
 	api := &apisrv.APIServer{
-		Pipeline:    buildPipeline(*hfBaseURL),
-		SchemaPath:  filepath.Join("schemas", "model-card.v1.json"),
-		AuditLogger: core.NewAuditLoggerFromEnv(),
-		ToolVersion: toolVersion,
+		Pipeline:         buildPipeline(*hfBaseURL),
+		SchemaPath:       filepath.Join("schemas", "model-card.v1.json"),
+		AuditLogger:      core.NewAuditLoggerFromEnv(),
+		ToolVersion:      toolVersion,
+		RequireAuth:      requireAuth,
+		APIKeys:          apiKeys,
+		RateLimitEnabled: envBool("MCG_RATE_LIMIT_ENABLED", true),
+		RateLimitRPM:     envInt("MCG_RATE_LIMIT_RPM", 120),
+		RateLimitBurst:   envInt("MCG_RATE_LIMIT_BURST", 30),
+		GenerateTimeout:  envDuration("MCG_GENERATE_TIMEOUT", 180*time.Second),
+		ValidateTimeout:  envDuration("MCG_VALIDATE_TIMEOUT", 60*time.Second),
+		CheckTimeout:     envDuration("MCG_CHECK_TIMEOUT", 60*time.Second),
+		LogWriter:        os.Stdout,
 	}
 
 	server := &http.Server{
@@ -568,4 +583,40 @@ func splitCSV(v string) []string {
 		}
 	}
 	return out
+}
+
+func envBool(key string, defaultValue bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func envInt(key string, defaultValue int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return defaultValue
+	}
+	return value
+}
+
+func envDuration(key string, defaultValue time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		return defaultValue
+	}
+	return value
 }

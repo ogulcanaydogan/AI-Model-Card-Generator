@@ -60,6 +60,11 @@ func TestAPIServerGenerateValidateCheckAndAudit(t *testing.T) {
 	srv := httptest.NewServer(api.Handler())
 	defer srv.Close()
 
+	readyResp, readyCode := getJSON(t, srv.URL+"/readyz")
+	if readyCode != http.StatusOK {
+		t.Fatalf("expected readyz 200, got %d: %+v", readyCode, readyResp)
+	}
+
 	generatePayload := map[string]any{
 		"source":                "custom",
 		"model":                 "api-demo",
@@ -136,6 +141,45 @@ func TestAPIServerGenerateValidateCheckAndAudit(t *testing.T) {
 	}
 }
 
+func TestAPIServerAuthAndRateLimit(t *testing.T) {
+	api := &apisrv.APIServer{
+		RequireAuth:      true,
+		APIKeys:          apisrv.ParseAPIKeys("integration-secret"),
+		RateLimitEnabled: true,
+		RateLimitRPM:     1,
+		RateLimitBurst:   1,
+	}
+
+	srv := httptest.NewServer(api.Handler())
+	defer srv.Close()
+
+	payload := map[string]any{
+		"source":    "wandb",
+		"model":     "bad-id",
+		"eval_file": "examples/eval_sample.csv",
+	}
+
+	missingKey := postJSONWithHeaders(t, srv.URL+"/generate", payload, nil, http.StatusUnauthorized)
+	if missingKey["code"] != "unauthorized" {
+		t.Fatalf("unexpected code for missing key: %+v", missingKey)
+	}
+
+	badKey := postJSONWithHeaders(t, srv.URL+"/generate", payload, map[string]string{"X-API-Key": "wrong"}, http.StatusForbidden)
+	if badKey["code"] != "unauthorized" {
+		t.Fatalf("unexpected code for bad key: %+v", badKey)
+	}
+
+	firstAllowed := postJSONWithHeaders(t, srv.URL+"/generate", payload, map[string]string{"X-API-Key": "integration-secret"}, http.StatusBadRequest)
+	if firstAllowed["code"] != "invalid_input" {
+		t.Fatalf("unexpected code for first allowed request: %+v", firstAllowed)
+	}
+
+	rateLimited := postJSONWithHeaders(t, srv.URL+"/generate", payload, map[string]string{"X-API-Key": "integration-secret"}, http.StatusTooManyRequests)
+	if rateLimited["code"] != "rate_limited" {
+		t.Fatalf("unexpected code for rate-limited request: %+v", rateLimited)
+	}
+}
+
 func postJSON(t *testing.T, url string, payload any, expectedStatus int) map[string]any {
 	t.Helper()
 	body, err := json.Marshal(payload)
@@ -161,6 +205,54 @@ func postJSON(t *testing.T, url string, payload any, expectedStatus int) map[str
 		t.Fatalf("unexpected status %d, expected %d: %+v", resp.StatusCode, expectedStatus, out)
 	}
 	return out
+}
+
+func postJSONWithHeaders(t *testing.T, url string, payload any, headers map[string]string, expectedStatus int) map[string]any {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("post request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.StatusCode != expectedStatus {
+		t.Fatalf("unexpected status %d, expected %d: %+v", resp.StatusCode, expectedStatus, out)
+	}
+	return out
+}
+
+func getJSON(t *testing.T, url string) (map[string]any, int) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return out, resp.StatusCode
 }
 
 func splitNonEmptyLines(input string) []string {

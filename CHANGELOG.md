@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
+## [v1.2.0] - Unreleased
+
+### Added
+- API security middleware for `mcg serve`:
+  - `X-API-Key` validation on protected routes (`POST /generate`, `POST /validate`, `POST /check`)
+  - auth config via `MCG_REQUIRE_AUTH` and `MCG_API_KEYS`
+- New readiness endpoint:
+  - `GET /readyz` with dependency checks for audit logger, schema path, and pipeline wiring
+- Rate limiting middleware:
+  - per-IP and per-endpoint token-bucket limits
+  - config via `MCG_RATE_LIMIT_ENABLED`, `MCG_RATE_LIMIT_RPM`, `MCG_RATE_LIMIT_BURST`
+  - stable API error code `rate_limited` with HTTP 429
+- Request tracing and structured logs:
+  - `X-Request-ID` passthrough/generation
+  - JSON request logs containing `request_id`, `route`, `status`, `latency_ms`, `client_ip`, and `error_code`
+
+### Updated
+- Timeout propagation for API handlers with endpoint-specific defaults (`generate`, `validate`, `check`).
+- API error classification with new `unauthorized` and `rate_limited` codes.
+- Integration and unit tests covering auth, rate limiting, request-id propagation, and readyz checks.
+- CI integration job now explicitly runs API hardening integration coverage.
+
 ## [v1.1.0] - 2026-03-07
 
 ### Added

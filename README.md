@@ -12,6 +12,7 @@ Automated model card generation for responsible AI and EU AI Act readiness.
 - Phase 2 Sprint 4 web skeleton (`/en`, `/tr`) with Carbon + NIST preview.
 - Phase 2 Sprint 4.1 web source parity (`custom|hf|wandb|mlflow`) and compliance tabs.
 - v1.1.0 web template builder (path-based): `/api/template/init|validate|preview` + `templateFile` generate flow.
+- v1.2.0 production hardening: static API key auth, rate limiting, structured request logs, and `GET /readyz`.
 - Phase 3 API server mode (`mcg serve`) and audit trail (`artifacts/audit/runs.jsonl`).
 - v1.0.1 custom template builder (CLI-first): `template init|validate|preview`, `--template-file`.
 - Performance and fairness metrics from evaluation CSV.
@@ -204,6 +205,11 @@ Endpoints:
 - `POST /validate`
 - `POST /check`
 - `GET /healthz`
+- `GET /readyz`
+
+Protected endpoint headers:
+- `X-API-Key` (required when `MCG_REQUIRE_AUTH=true`)
+- `X-Request-ID` (optional, generated if not provided)
 
 ### W&B Environment Variables
 
@@ -256,6 +262,17 @@ Example script:
 
 - `MCG_AUDIT_PATH` (optional, default `artifacts/audit/runs.jsonl`)
 - `MCG_OPERATOR` (optional, default `unknown`)
+
+### Server Security Environment Variables
+
+- `MCG_REQUIRE_AUTH` (optional, default `false`)
+- `MCG_API_KEYS` (optional comma-separated keys; required when auth is enabled)
+- `MCG_RATE_LIMIT_ENABLED` (optional, default `true`)
+- `MCG_RATE_LIMIT_RPM` (optional, default `120`)
+- `MCG_RATE_LIMIT_BURST` (optional, default `30`)
+- `MCG_GENERATE_TIMEOUT` (optional, default `180s`)
+- `MCG_VALIDATE_TIMEOUT` (optional, default `60s`)
+- `MCG_CHECK_TIMEOUT` (optional, default `60s`)
 
 ## Eval CSV Contract
 
