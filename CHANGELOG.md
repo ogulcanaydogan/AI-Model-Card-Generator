@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [v1.2.0] - Unreleased
+## [v1.2.0] - 2026-03-08
 
 ### Added
 - API security middleware for `mcg serve`:
