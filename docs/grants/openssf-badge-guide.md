@@ -1,4 +1,4 @@
-# OpenSSF Best Practices Badge — Submission Guide
+# OpenSSF Best Practices Badge: Submission Guide
 
 > **URL:** https://www.bestpractices.dev/
 > **Time:** ~30 minutes
