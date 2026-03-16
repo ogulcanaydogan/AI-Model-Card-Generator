@@ -1,5 +1,5 @@
 # AI-Model-Card-Generator
-[\![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12185/badge)](https://www.bestpractices.dev/projects/12185)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12185/badge)](https://www.bestpractices.dev/projects/12185)
 
 Automated model card generation for responsible AI and EU AI Act readiness.
 
